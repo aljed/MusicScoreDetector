@@ -4,78 +4,121 @@ import matplotlib.image as mpimg
 import numpy as np
 import matplotlib.pyplot as plt
 import random
-import time
+from dataclasses import dataclass
+from statistics import median
 
+from pip._internal.utils.misc import pairwise
 
 ANGLE = math.radians(0)
 COS = math.cos(ANGLE)
 SIN = math.sin(ANGLE)
 PICTURES = '../pictures/'
 
-test = []
+
+class Line:
+    is_black: bool
+    weight: int
 
 
-def transform(x, y, value):
-    v = round(x * COS + y * SIN)
-    if v == 500 or v == 501 and value == 255:
-        return 0
-    else:
-        return 255
+@dataclass(frozen=True)
+class Staff:
+    lines: []
 
 
-def t2(x, y, value):
-    if value > 128:
-        return 255
-    else:
-        return 0
+class StaffPositionFinder:
 
+    def __init__(self):
+        self.colour_threshold = 200
+        self.start_threshold = 0.3
 
-# def getPixelMap():
-#     files = os.listdir(PICTURES)
-#     random.shuffle(files)
-#     for file in files:
-#         image = mpimg.imread(PICTURES + '\\' + file)
-#         x = np.shape(image)[0]
-#         y = np.shape(image)[1]
-#         avg = np.mean(image, axis=2)
-#         transformed = np.empty([x, y, 3])
-#         start = time.time()
-#         for i in range(x):
-#             for j in range(y):
-#                 t = t2(i, j, avg[i][j])
-#                 transformed[i][j][0] = t
-#                 transformed[i][j][1] = t
-#                 transformed[i][j][2] = t
-#         end = time.time()
-#         print(end - start)
-#
-#         return transformed
+    def get_staff(self, image):
+        return self.check_staff(self.get_positions(image, self.start_threshold))
+
+    def get_positions(self, image, threshold):
+        x = np.shape(image)[0]
+        avg = np.mean(image, axis=2)
+
+        list = []
+        for i in range(x):
+            c = np.count_nonzero(avg[i, :] < self.colour_threshold)
+            if c / x > threshold:
+                list.append(i)
+
+        return list
+
+    def check_staff(self, generator):
+        def merge_thick_lines(lines):
+            if len(lines) == 0:
+                return np.array([])
+            counter = 1
+            while len(lines) > counter and lines[counter] - 1 == lines[counter - 1]:
+                counter += 1
+            if counter % 2 != 0:
+                pos = lines[int(counter / 2 - 1 / 2)]
+            else:
+                pos = (lines[int(counter / 2 - 1)] + lines[int(counter / 2)]) / 2
+            return np.insert(merge_thick_lines(lines[counter:]), 0, pos)
+
+        def fill_gaps(g):
+            new_positions = []
+            for i in range(len(g) - 1):
+                if g[i + 1] - 2 == g[i]:
+                    new_positions.append(g[i])
+                    new_positions.append(g[i] + 1)
+                else:
+                    new_positions.append(g[i])
+            return new_positions
+
+        def group(lines):
+
+            pairs = []
+            for i in range(len(lines) - 1):
+                pairs.append((lines[i], lines[i + 1]))
+
+            intervals = list(map(lambda a: a[1] - a[0], pairs))
+            m = median(intervals)
+            it = iter(lines)
+            staffs = []
+            group = []
+
+            for int in intervals:
+                group.append(next(it))
+                if m * 1.1 < int:
+                    staffs.append(Staff(group.copy()))
+                    group.clear()
+
+            print(staffs)
+            return staffs
+
+        filled = fill_gaps(generator)
+        merged = merge_thick_lines(filled)
+
+        group(merged)
+
+        return merged
 
 
 def getPixelMap():
     files = os.listdir(PICTURES)
-    # random.shuffle(files)
-    for file in files:
-        image = mpimg.imread(PICTURES + '\\' + file)
-        x = np.shape(image)[0]
-        y = np.shape(image)[1]
-        avg = np.mean(image, axis=2)
-        res = []
-        for i in range(x):
-            c = np.count_nonzero(avg[i, :] < 200)
-            if(c/y > 0.01):
-                res.append(1)
-            else:
-                res.append(0)
-        im = np.zeros([x,y,3 ])
-        for i in range(len(res)):
-            if res[i] == 1:
-                im[:, res[i], :] = 255
-        return im
+    random.shuffle(files)
+    file = '1.pdf_6.jpg'
+    file = files[0]
+    print(file)
+    image = mpimg.imread(PICTURES + '\\' + file)
+    x = np.shape(image)[0]
+    y = np.shape(image)[1]
+
+    a = StaffPositionFinder()
+    res = [round(x) for x in a.get_staff(image)]
+
+    im = np.zeros([x, y, 3], dtype=np.uintc)
+    im.fill(int(255))
+    for i in range(len(res)):
+        im[res[i], :, :] = 0
+    return im
 
 
-image = getPixelMap()
+i = getPixelMap()
 fig, ax = plt.subplots()
-shown = ax.imshow(image)
-print(image)
+shown = ax.imshow(i)
 plt.show()
