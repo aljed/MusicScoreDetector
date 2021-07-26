@@ -1,5 +1,7 @@
 import PIL.Image as im
 from pdf2image import convert_from_path
+import imageio
+import _elementtree
 import os
 
 SOURCE = 'nuty'

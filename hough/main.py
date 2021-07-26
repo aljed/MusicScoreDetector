@@ -7,8 +7,6 @@ import random
 from dataclasses import dataclass
 from statistics import median
 
-from pip._internal.utils.misc import pairwise
-
 ANGLE = math.radians(0)
 COS = math.cos(ANGLE)
 SIN = math.sin(ANGLE)
@@ -48,15 +46,19 @@ class StaffPositionFinder:
 
     def check_staff(self, generator):
         def merge_thick_lines(lines):
+
             if len(lines) == 0:
                 return np.array([])
             counter = 1
+
             while len(lines) > counter and lines[counter] - 1 == lines[counter - 1]:
                 counter += 1
+
             if counter % 2 != 0:
                 pos = lines[int(counter / 2 - 1 / 2)]
             else:
                 pos = (lines[int(counter / 2 - 1)] + lines[int(counter / 2)]) / 2
+
             return np.insert(merge_thick_lines(lines[counter:]), 0, pos)
 
         def fill_gaps(g):
@@ -83,7 +85,7 @@ class StaffPositionFinder:
 
             for int in intervals:
                 group.append(next(it))
-                if m * 1.1 < int:
+                if m * 1.5 < int:
                     staffs.append(Staff(group.copy()))
                     group.clear()
 
@@ -92,8 +94,8 @@ class StaffPositionFinder:
 
         filled = fill_gaps(generator)
         merged = merge_thick_lines(filled)
+        staffs = group(merged)
 
-        group(merged)
 
         return merged
 
