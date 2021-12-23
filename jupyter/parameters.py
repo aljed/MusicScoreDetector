@@ -1,8 +1,10 @@
-PNG_PATH = 'C:\\Users\\user\\Downloads\\deep_scores_dense\\deep_scores_dense\\images_png'
-XML_PATH = 'C:\\Users\\user\\Downloads\\deep_scores_dense\\deep_scores_dense\\xml_annotations'
-CONVERTED_PATH = 'C:\\Users\\user\\Downloads\\deep_scores_dense\\deep_scores_dense\\converted'
-CLASSES_PATH = 'C:\\Users\\user\\Downloads\\deep_scores_dense\\deep_scores_dense\\meta_info'
+PNG_PATH = r'C:\Users\user\PycharmProjects\nuty5\deep_scores_dense\images_png'
+XML_PATH = r'C:\Users\user\PycharmProjects\nuty5\deep_scores_dense\xml_annotations'
+CONVERTED_PATH = r'C:\Users\user\PycharmProjects\nuty5\deep_scores_dense\converted'
+CLASSES_PATH = r'C:\Users\user\PycharmProjects\nuty5\deep_scores_dense\meta_info'
 X = 100
 Y = 100
-PARTS_NUMBER = 100
-ELEMENTS_MAX_NUMBER = 10
+PARTS_NUMBER = 32
+ELEMENTS_MAX_NUMBER = 3
+USED_PARAMETERS = ['noteheadBlack']
+BATCH_SIZE = PARTS_NUMBER
