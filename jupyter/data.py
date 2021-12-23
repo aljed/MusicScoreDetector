@@ -21,8 +21,12 @@ class BoundingBox:
     def get_normalized(self, x, y):
         return BoundingBox(self.xmin / x, self.xmax / x, self.ymin / y, self.ymax / y)
 
-    def serialize(self) -> list[float]:
-        return [self.xmin, self.xmax, self.ymin, self.ymax]
+    def serialize(self, slice_bb) -> list[float]:
+        return [(self.xmin - slice_bb.xmin) / (slice_bb.xmax - slice_bb.xmin),
+                (self.xmax - slice_bb.xmin) / (slice_bb.xmax - slice_bb.xmin),
+                (self.ymin - slice_bb.ymin) / (slice_bb.ymax - slice_bb.ymin),
+                (self.ymax - slice_bb.ymin) / (slice_bb.ymax - slice_bb.ymin)]
+
 
 
 @dataclass
@@ -30,13 +34,13 @@ class Element:
     typ: str
     bounding_box: BoundingBox
 
-    def serialize(self, classes, empty=False):
+    def serialize(self, classes, slice_bb: BoundingBox, empty=False):
         confidence_score = 0
         prob_list = np.zeros([len(classes)])
         if not empty:
             confidence_score = 1
             prob_list[classes[self.typ]] = 1.0
-        return np.concatenate([[confidence_score], self.bounding_box.serialize(), prob_list])
+        return np.concatenate([[confidence_score], self.bounding_box.serialize(slice_bb), prob_list])
 
 
 class Page:
@@ -100,6 +104,7 @@ class PartData:
     x: int
     max_y: int
     max_x: int
+    bb: BoundingBox
 
 
 def split_image(filename):
@@ -110,10 +115,11 @@ def split_image(filename):
     parts = []
 
     for i in range(p.PARTS_NUMBER):
+
         random_y = random.randrange(max_y)
         random_x = random.randrange(max_x)
         slice = image[random_y:random_y + p.Y, random_x:random_x + p.X, 0:3]
-        parts.append(PartData(slice, random_y, random_x, shape[0], shape[1]))
+        parts.append(PartData(slice, random_y, random_x, shape[0], shape[1], BoundingBox(random_x / max_x, (random_x + p.X) / max_x, random_y / max_y, (random_y + p.Y) / max_y)))
 
     return parts
 
@@ -140,9 +146,9 @@ class Data:
     img: list
     elements: list
 
-    def to_ts(self, output_dim, classes):
+    def to_ts(self, output_dim, classes, bb: BoundingBox):
         return (np.reshape(np.array(self.img) / 255, (p.Y, p.X, 3)),
-                np.reshape(serialize_element_list(self.elements, classes), (output_dim)))
+                np.reshape(serialize_element_list(self.elements, classes, bb), output_dim))
 
 
 class Generator:
@@ -158,14 +164,12 @@ class Generator:
                 file = file.decode("utf-8")
             splitted = split_image(file)
             page = self.pages[file.replace(".png", ".xml")]
-            xs_ys = [Data(s.slice, page.retrieve_from_box(
-                        BoundingBox(s.x / s.max_x, (s.x + p.X) / s.max_x, s.y / s.max_y, (s.y + p.Y) / s.max_y))) \
-                        .to_ts(self.output_dim, self.classes) for s in splitted]
+            xs_ys = [Data(s.slice, page.retrieve_from_box(s.bb)).to_ts(self.output_dim, self.classes, s.bb) for s in splitted]
             yield (np.array([i for i, j in xs_ys]),
                    np.array([j for i, j in xs_ys]))
 
 
-def serialize_element_list(elements, classes):
+def serialize_element_list(elements, classes, bb: BoundingBox):
     output_array = np.empty([p.ELEMENTS_MAX_NUMBER, len(classes) + 5])
     empty_number = p.ELEMENTS_MAX_NUMBER - len(elements)
     for i in range(p.ELEMENTS_MAX_NUMBER - len(elements)):
@@ -178,6 +182,6 @@ def serialize_element_list(elements, classes):
         empty = False
         if empty_number > 0:
             empty = True
-        output_array[i, :] = elements[i].serialize(classes, empty)
+        output_array[i, :] = elements[i].serialize(classes, bb, empty)
     reshaped = np.reshape(np.array(output_array), (p.ELEMENTS_MAX_NUMBER * (len(classes) + 5)))
     return reshaped
