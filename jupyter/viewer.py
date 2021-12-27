@@ -1,6 +1,6 @@
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
-
+import parameters as p
 
 def show_prediction(y, x):
 
@@ -10,6 +10,7 @@ def show_prediction(y, x):
     def show_bb(bb, x):
         fig, ax = plt.subplots()
         ax.imshow(x)
+        bb *= p.X
         rect = patches.Rectangle((bb[1], bb[3]), bb[0] - bb[1], bb[2] - bb[3], linewidth=1,
                                  edgecolor='r', facecolor='none')
         ax.add_patch(rect)

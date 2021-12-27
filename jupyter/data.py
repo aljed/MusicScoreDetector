@@ -5,6 +5,7 @@ import os
 import random
 import parameters as p
 import xml.etree.ElementTree as ET
+import math
 
 
 @dataclass
@@ -14,9 +15,11 @@ class BoundingBox:
     ymin: float
     ymax: float
 
-    # a może nie trzymać się tego tak restrykcyjnie?
     def is_within(self, bb):
         return bb.xmin <= self.xmin and bb.xmax >= self.xmax and bb.ymin <= self.ymin and bb.ymax >= self.ymax
+
+    def is_point_within(self, x, y):
+        return self.xmin >= x >= self.xmax and self.ymin >= y >= self.ymax
 
     def get_normalized(self, x, y):
         return BoundingBox(self.xmin / x, self.xmax / x, self.ymin / y, self.ymax / y)
@@ -26,7 +29,6 @@ class BoundingBox:
                 (self.xmax - slice_bb.xmin) / (slice_bb.xmax - slice_bb.xmin),
                 (self.ymin - slice_bb.ymin) / (slice_bb.ymax - slice_bb.ymin),
                 (self.ymax - slice_bb.ymin) / (slice_bb.ymax - slice_bb.ymin)]
-
 
 
 @dataclass
@@ -71,7 +73,7 @@ class Retriever:
 
         for f in files:
 
-            if counter % 100 == 0:
+            if counter % 500 == 0:
                 print(
                     f'{round(counter * 100 / num_of_files)}% of the files processed, we are at {counter} in {num_of_files}.')
             counter += 1
@@ -115,11 +117,12 @@ def split_image(filename):
     parts = []
 
     for i in range(p.PARTS_NUMBER):
-
         random_y = random.randrange(max_y)
         random_x = random.randrange(max_x)
         slice = image[random_y:random_y + p.Y, random_x:random_x + p.X, 0:3]
-        parts.append(PartData(slice, random_y, random_x, shape[0], shape[1], BoundingBox(random_x / max_x, (random_x + p.X) / max_x, random_y / max_y, (random_y + p.Y) / max_y)))
+        parts.append(PartData(slice, random_y, random_x, shape[0], shape[1],
+                              BoundingBox(random_x / max_x, (random_x + p.X) / max_x, random_y / max_y,
+                                          (random_y + p.Y) / max_y)))
 
     return parts
 
@@ -145,6 +148,7 @@ def retrieve_class_names():
 class Data:
     img: list
     elements: list
+    bb: BoundingBox
 
     def to_ts(self, output_dim, classes, bb: BoundingBox):
         return (np.reshape(np.array(self.img) / 255, (p.Y, p.X, 3)),
@@ -159,29 +163,45 @@ class Generator:
         self.classes = classes
 
     def generator(self, files):
+        xs_ys = []
         for file in files:
             if not isinstance(file, str):
                 file = file.decode("utf-8")
             splitted = split_image(file)
             page = self.pages[file.replace(".png", ".xml")]
-            xs_ys = [Data(s.slice, page.retrieve_from_box(s.bb)).to_ts(self.output_dim, self.classes, s.bb) for s in splitted]
-            yield (np.array([i for i, j in xs_ys]),
-                   np.array([j for i, j in xs_ys]))
+            if len(xs_ys) < p.BATCH_SIZE:
+                xs_ys_new = [Data(s.slice, page.retrieve_from_box(s.bb), s.bb) for s in splitted]
+                xs_ys += [d.to_ts(self.output_dim, self.classes, d.bb) for d in xs_ys_new if len(d.elements) > 0]
+            if len(xs_ys) >= p.BATCH_SIZE:
+                elements_to_yield = xs_ys[0:p.BATCH_SIZE]
+                if len(xs_ys) > p.BATCH_SIZE:
+                    xs_ys = xs_ys[p.BATCH_SIZE:]
+                yield (np.array([i for i, j in elements_to_yield]),
+                       np.array([j for i, j in elements_to_yield]))
 
 
 def serialize_element_list(elements, classes, bb: BoundingBox):
-    output_array = np.empty([p.ELEMENTS_MAX_NUMBER, len(classes) + 5])
-    empty_number = p.ELEMENTS_MAX_NUMBER - len(elements)
-    for i in range(p.ELEMENTS_MAX_NUMBER - len(elements)):
-        random_class_index = random.randrange(len(classes))
-        elements.append(
-            Element(list(classes.keys())[random_class_index],
-                    BoundingBox(random.random(), random.random(), random.random(), random.random()))
-        )
-    for i in range(len(elements)):
-        empty = False
-        if empty_number > 0:
-            empty = True
-        output_array[i, :] = elements[i].serialize(classes, bb, empty)
-    reshaped = np.reshape(np.array(output_array), (p.ELEMENTS_MAX_NUMBER * (len(classes) + 5)))
+    output_array = np.empty([p.GX * p.GY, len(classes) + 5])
+
+    for i in range(p.GX * p.GY):
+        current_box_row_index = math.floor(i / p.GY)
+        current_box_column_index = i % p.GY
+        unit_cell_width = (bb.xmax - bb.xmin) / p.GX
+        unit_cell_height = (bb.ymax - bb.ymin) / p.GY
+        current_bb = BoundingBox(current_box_column_index * unit_cell_width,
+                                 (current_box_column_index + 1) * unit_cell_width,
+                                 current_box_row_index * unit_cell_height,
+                                 (current_box_row_index + 1) * unit_cell_height )
+        elements_in_current_cell = [e for e in elements if
+                                    current_bb.is_point_within((e.bounding_box.xmax + e.bounding_box.xmin) / 2,
+                                                               (e.bounding_box.ymax + e.bounding_box.ymin) / 2)]
+        if len(elements_in_current_cell) == 0:
+            random_class_index = random.randrange(len(classes))
+            random_element = Element(list(classes.keys())[random_class_index],
+                                     BoundingBox(random.random(), random.random(), random.random(), random.random()))
+            output_array[i, :] = random_element.serialize(classes, current_bb, True)
+        else:
+            output_array[i, :] = elements_in_current_cell[0].serialize(classes, current_bb, False)
+    reshaped = np.reshape(np.array(output_array), (p.GX * p.GY * (len(classes) + 5)))
+
     return reshaped
