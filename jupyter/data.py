@@ -19,16 +19,31 @@ class BoundingBox:
         return bb.xmin <= self.xmin and bb.xmax >= self.xmax and bb.ymin <= self.ymin and bb.ymax >= self.ymax
 
     def is_point_within(self, x, y):
-        return self.xmin >= x >= self.xmax and self.ymin >= y >= self.ymax
+        return self.xmin <= x <= self.xmax and self.ymin <= y <= self.ymax
 
     def get_normalized(self, x, y):
         return BoundingBox(self.xmin / x, self.xmax / x, self.ymin / y, self.ymax / y)
 
+    def get_relative_bb2(self, new_bb):
+        return BoundingBox((self.xmin - new_bb.xmin) / (new_bb.xmax - new_bb.xmin),
+                (self.xmax - new_bb.xmin) / (new_bb.xmax - new_bb.xmin),
+                (self.ymin - new_bb.ymin) / (new_bb.ymax - new_bb.ymin),
+                (self.ymax - new_bb.ymin) / (new_bb.ymax - new_bb.ymin))
+
+    def get_relative_bb(self, new_bb):
+        return BoundingBox(new_bb.xmin + (new_bb.xmax - new_bb.xmin) * self.xmin,
+                           new_bb.xmin + (new_bb.xmax - new_bb.xmin) * self.xmax,
+                           new_bb.ymin + (new_bb.ymax - new_bb.ymin) * self.ymin,
+                           new_bb.ymin + (new_bb.ymax - new_bb.ymin) * self.ymax)
+
     def serialize(self, slice_bb) -> list[float]:
-        return [(self.xmin - slice_bb.xmin) / (slice_bb.xmax - slice_bb.xmin),
-                (self.xmax - slice_bb.xmin) / (slice_bb.xmax - slice_bb.xmin),
-                (self.ymin - slice_bb.ymin) / (slice_bb.ymax - slice_bb.ymin),
-                (self.ymax - slice_bb.ymin) / (slice_bb.ymax - slice_bb.ymin)]
+        width = abs(self.xmax - self.xmin)
+        height = abs(self.ymax - self.ymin)
+        x = abs(self.xmax + self.xmin) / 2
+        y = abs(self.ymax + self.ymin) / 2
+        return [width, height,
+                abs((x - slice_bb.xmin) / (slice_bb.xmax - slice_bb.xmin)) % 1,
+                abs((y - slice_bb.ymin) / (slice_bb.ymax - slice_bb.ymin)) % 1]
 
 
 @dataclass
@@ -36,112 +51,13 @@ class Element:
     typ: str
     bounding_box: BoundingBox
 
-    def serialize(self, classes, slice_bb: BoundingBox, empty=False):
+    def serialize(self, classes, cell_bb: BoundingBox, empty=False):
         confidence_score = 0
         prob_list = np.zeros([len(classes)])
         if not empty:
             confidence_score = 1
             prob_list[classes[self.typ]] = 1.0
-        return np.concatenate([[confidence_score], self.bounding_box.serialize(slice_bb), prob_list])
-
-
-class Page:
-
-    def __init__(self, name):
-        self.name = name
-        self.elements = []
-
-    def add(self, element):
-        self.elements.append(element)
-
-    def retrieve_from_box(self, bb):
-        filtered = []
-        for e in self.elements:
-            if e.bounding_box.is_within(bb):
-                filtered.append(e)
-        return filtered
-
-
-class Retriever:
-
-    def retrieve(self, classes: list):
-
-        files = os.listdir(p.XML_PATH)
-        pages = {}
-        num_of_files = len(files)
-        counter = 1
-
-        for f in files:
-
-            if counter % 500 == 0:
-                print(
-                    f'{round(counter * 100 / num_of_files)}% of the files processed, we are at {counter} in {num_of_files}.')
-            counter += 1
-            page = Page(f)
-            tree = ET.parse(p.XML_PATH + "\\" + f)
-            root = tree.getroot()
-
-            for obj in root.iter('object'):
-                raw_bb = obj.find('bndbox')
-                typ = obj.find('name').text
-                if classes.__contains__(typ):
-                    page.add(Element(
-                        obj.find('name').text,
-                        BoundingBox(
-                            float(raw_bb.find('xmin').text),
-                            float(raw_bb.find('xmax').text),
-                            float(raw_bb.find('ymin').text),
-                            float(raw_bb.find('ymax').text)
-                        )))
-
-            pages[f] = page
-
-        return pages
-
-
-@dataclass
-class PartData:
-    slice: list
-    y: int
-    x: int
-    max_y: int
-    max_x: int
-    bb: BoundingBox
-
-
-def split_image(filename):
-    image = np.array(im.imread(p.PNG_PATH + '\\' + filename))
-    shape = np.shape(image)
-    max_y = shape[0] - p.Y
-    max_x = shape[1] - p.X
-    parts = []
-
-    for i in range(p.PARTS_NUMBER):
-        random_y = random.randrange(max_y)
-        random_x = random.randrange(max_x)
-        slice = image[random_y:random_y + p.Y, random_x:random_x + p.X, 0:3]
-        parts.append(PartData(slice, random_y, random_x, shape[0], shape[1],
-                              BoundingBox(random_x / max_x, (random_x + p.X) / max_x, random_y / max_y,
-                                          (random_y + p.Y) / max_y)))
-
-    return parts
-
-
-def retrieve_class_names():
-    counter = 0
-    names = {}
-
-    if not p.USED_PARAMETERS:
-        files = os.listdir(p.CLASSES_PATH)
-        for f in files:
-            names[f.replace('.csv', '')] = counter
-            counter += 1
-    else:
-        for index in p.USED_PARAMETERS:
-            names[index] = counter
-            counter += 1
-
-    return names
+        return np.concatenate([[confidence_score], self.bounding_box.serialize(cell_bb), prob_list])
 
 
 @dataclass
@@ -186,22 +102,126 @@ def serialize_element_list(elements, classes, bb: BoundingBox):
     for i in range(p.GX * p.GY):
         current_box_row_index = math.floor(i / p.GY)
         current_box_column_index = i % p.GY
-        unit_cell_width = (bb.xmax - bb.xmin) / p.GX
-        unit_cell_height = (bb.ymax - bb.ymin) / p.GY
+        unit_cell_width = 1 / p.GX
+        unit_cell_height = 1 / p.GY
         current_bb = BoundingBox(current_box_column_index * unit_cell_width,
                                  (current_box_column_index + 1) * unit_cell_width,
                                  current_box_row_index * unit_cell_height,
-                                 (current_box_row_index + 1) * unit_cell_height )
-        elements_in_current_cell = [e for e in elements if
-                                    current_bb.is_point_within((e.bounding_box.xmax + e.bounding_box.xmin) / 2,
-                                                               (e.bounding_box.ymax + e.bounding_box.ymin) / 2)]
+                                 (current_box_row_index + 1) * unit_cell_height)
+
+        def is_within_current_cell(e):
+            resultant_bb = e.bounding_box.get_relative_bb2(bb)
+            x = (resultant_bb.xmax + resultant_bb.xmin) / 2
+            y = (resultant_bb.ymax + resultant_bb.ymin) / 2
+            return current_bb.is_point_within(x, y)
+
+        elements_in_current_cell = [e for e in elements if is_within_current_cell(e)]
         if len(elements_in_current_cell) == 0:
             random_class_index = random.randrange(len(classes))
             random_element = Element(list(classes.keys())[random_class_index],
                                      BoundingBox(random.random(), random.random(), random.random(), random.random()))
-            output_array[i, :] = random_element.serialize(classes, current_bb, True)
+            output_array[i, :] = random_element.serialize(classes, current_bb.get_relative_bb(bb), True)
         else:
-            output_array[i, :] = elements_in_current_cell[0].serialize(classes, current_bb, False)
+            output_array[i, :] = elements_in_current_cell[0].serialize(classes, current_bb.get_relative_bb(bb), False)
     reshaped = np.reshape(np.array(output_array), (p.GX * p.GY * (len(classes) + 5)))
 
     return reshaped
+
+
+class Page:
+
+    def __init__(self, name):
+        self.name = name
+        self.elements = []
+
+    def add(self, element):
+        self.elements.append(element)
+
+    def retrieve_from_box(self, bb):
+        filtered = []
+        for e in self.elements:
+            if e.bounding_box.is_within(bb):
+                filtered.append(e)
+        return filtered
+
+
+class Retriever:
+
+    def retrieve(self, classes: list, xml_path=p.XML_PATH):
+
+        files = os.listdir(xml_path)
+        pages = {}
+        num_of_files = len(files)
+        counter = 1
+
+        for f in files:
+
+            if counter % 500 == 0:
+                print(
+                    f'{round(counter * 100 / num_of_files)}% of the files processed, we are at {counter} in {num_of_files}.')
+            counter += 1
+            page = Page(f)
+            tree = ET.parse(xml_path + "\\" + f)
+            root = tree.getroot()
+
+            for obj in root.iter('object'):
+                raw_bb = obj.find('bndbox')
+                typ = obj.find('name').text
+                if classes.__contains__(typ):
+                    page.add(Element(
+                        obj.find('name').text,
+                        BoundingBox(
+                            float(raw_bb.find('xmin').text),
+                            float(raw_bb.find('xmax').text),
+                            float(raw_bb.find('ymin').text),
+                            float(raw_bb.find('ymax').text)
+                        )))
+
+            pages[f] = page
+
+        return pages
+
+
+@dataclass
+class PartData:
+    slice: list
+    y: int
+    x: int
+    max_y: int
+    max_x: int
+    bb: BoundingBox
+
+
+def split_image(filename):
+    image = np.array(im.imread(p.PNG_PATH + '\\' + filename))
+    shape = np.shape(image)
+    max_y = shape[0] - p.Y
+    max_x = shape[1] - p.X
+    parts = []
+
+    for i in range(p.PARTS_NUMBER):
+        random_y = random.randrange(max_y) #205
+        random_x = random.randrange(max_x) #436
+        slice = image[random_y:random_y + p.Y, random_x:random_x + p.X, 0:3]
+        parts.append(PartData(slice, random_y, random_x, shape[0], shape[1],
+                              BoundingBox(random_x / shape[1], (random_x + p.X) / shape[1], random_y / shape[0],
+                                          (random_y + p.Y) / shape[0])))
+
+    return parts
+
+
+def retrieve_class_names():
+    counter = 0
+    names = {}
+
+    if not p.USED_PARAMETERS:
+        files = os.listdir(p.CLASSES_PATH)
+        for f in files:
+            names[f.replace('.csv', '')] = counter
+            counter += 1
+    else:
+        for index in p.USED_PARAMETERS:
+            names[index] = counter
+            counter += 1
+
+    return names
