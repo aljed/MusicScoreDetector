@@ -6,12 +6,15 @@ import parameters as p
 import math
 
 
-def show_prediction(y, x):
+def show_prediction(y1, x1):
 
     def extract_bb(y):
         return np.reshape(y[0], (p.GX * p.GY, -1))[..., 0:5]
 
-    def get_rectangles(y):
+    def show_bb(y, x):
+        fig, ax = plt.subplots()
+        ax.imshow(x[0])
+
         rectangles = []
         for i in range(p.GX * p.GY):
             current_box_row_index = math.floor(i / p.GY)
@@ -23,18 +26,11 @@ def show_prediction(y, x):
             if y[i][0] > 0.5:
                 rectangles.append([x_anchor, y_anchor, width, height])
 
-        return rectangles
-
-    def show_bb(y, x):
-        fig, ax = plt.subplots()
-        ax.imshow(x[0])
-        rectangles = get_rectangles(y)
         for r in rectangles:
-            p = patches.Rectangle((r[0], r[1]), r[2], r[3], linewidth=1, edgecolor='r', facecolor='none')
-            ax.add_patch(p)
+            p1 = patches.Rectangle((r[0], r[1]), r[2], r[3], linewidth=1, edgecolor='r', facecolor='none')
+            ax.add_patch(p1)
 
         plt.draw()
         plt.show()
 
-    show_bb(extract_bb(y), x)
-
+    show_bb(extract_bb(y1), x1)
