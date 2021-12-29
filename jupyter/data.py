@@ -37,11 +37,13 @@ class BoundingBox:
                            new_bb.ymin + (new_bb.ymax - new_bb.ymin) * self.ymax)
 
     def serialize(self, slice_bb) -> list[float]:
-        width = abs(self.xmax - self.xmin)
-        height = abs(self.ymax - self.ymin)
+        new_bb = self.get_relative_bb2(slice_bb)
+        width = abs(new_bb.xmax - new_bb.xmin) / p.GX
+        height = abs(new_bb.ymax - new_bb.ymin) / p.GY
         x = abs(self.xmax + self.xmin) / 2
         y = abs(self.ymax + self.ymin) / 2
-        return [width, height,
+        return [abs(width) % 1,
+                abs(height) % 1,
                 abs((x - slice_bb.xmin) / (slice_bb.xmax - slice_bb.xmin)) % 1,
                 abs((y - slice_bb.ymin) / (slice_bb.ymax - slice_bb.ymin)) % 1]
 
