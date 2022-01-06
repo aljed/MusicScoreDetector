@@ -8,12 +8,30 @@ import xml.etree.ElementTree as ET
 import math
 
 
+def create_bb(x, y, width, height, x_transposition, y_transposition):
+    return BoundingBox(xmin = x - width/2 + x_transposition,
+                        xmax = x + width/2 + x_transposition,
+                        ymin = y - height/2 + y_transposition,
+                        ymax = y + height/2 + y_transposition)
+
+
 @dataclass
 class BoundingBox:
     xmin: float
     xmax: float
     ymin: float
     ymax: float
+
+    def get_area(self):
+        return (self.xmax - self.xmin) / (self.ymax - self.ymin)
+
+    def common_area(self, pos):  # returns None if rectangles don't intersect
+        dx = min(self.xmax, pos.xmax) - max(self.xmin, pos.xmin)
+        dy = min(self.ymax, pos.ymax) - max(self.ymin, pos.ymin)
+        if (dx >= 0) and (dy >= 0):
+            return dx * dy
+        else:
+            return 0
 
     def is_within(self, bb):
         return bb.xmin <= self.xmin and bb.xmax >= self.xmax and bb.ymin <= self.ymin and bb.ymax >= self.ymax
@@ -216,13 +234,13 @@ def retrieve_class_names():
     counter = 0
     names = {}
 
-    if not p.USED_PARAMETERS:
+    if not p.CLASSES:
         files = os.listdir(p.CLASSES_PATH)
         for f in files:
             names[f.replace('.csv', '')] = counter
             counter += 1
     else:
-        for index in p.USED_PARAMETERS:
+        for index in p.CLASSES:
             names[index] = counter
             counter += 1
 
