@@ -1,9 +1,8 @@
 import math
 import numpy as np
-# import os
-# import matplotlib.image as mpimg
-# import matplotlib.pyplot as plt
-# import random
+import os
+import matplotlib.image as mpimg
+import matplotlib.pyplot as plt
 from dataclasses import dataclass
 from statistics import median
 
@@ -35,38 +34,24 @@ def get_border_pixels(staffs):
     return borders
 
 
-class Line:
-    is_black: bool
-    weight: int
+def merge_thick_lines(lines):
+
+    if len(lines) == 0:
+        return np.array([])
+    counter = 1
+
+    while len(lines) > counter and lines[counter] - 1 == lines[counter - 1]:
+        counter += 1
+
+    if counter % 2 != 0:
+        pos = lines[int(counter / 2 - 1 / 2)]
+    else:
+        pos = (lines[int(counter / 2 - 1)] + lines[int(counter / 2)]) / 2
+
+    return np.insert(merge_thick_lines(lines[counter:]), 0, pos)
 
 
 def check_staff(generator):
-    def merge_thick_lines(lines):
-
-        if len(lines) == 0:
-            return np.array([])
-        counter = 1
-
-        while len(lines) > counter and lines[counter] - 1 == lines[counter - 1]:
-            counter += 1
-
-        if counter % 2 != 0:
-            pos = lines[int(counter / 2 - 1 / 2)]
-        else:
-            pos = (lines[int(counter / 2 - 1)] + lines[int(counter / 2)]) / 2
-
-        return np.insert(merge_thick_lines(lines[counter:]), 0, pos)
-
-    def fill_gaps(g):
-        new_positions = []
-        for i in range(len(g) - 1):
-            if g[i + 1] - 2 == g[i]:
-                new_positions.append(g[i])
-                new_positions.append(g[i] + 1)
-            else:
-                new_positions.append(g[i])
-        return new_positions
-
     def group(lines):
 
         pairs = []
@@ -82,16 +67,27 @@ def check_staff(generator):
         for interval in intervals:
             lines_group.append(next(it))
             if m * 1.5 < interval:
-                staffs_list.append(Staff(lines_group.copy(), []))
+                staffs_list.append(lines_group.copy())
                 lines_group.clear()
 
-        staffs_list.append(Staff(lines_group.copy(), []))
+        lines_group.append(next(it))
+        staffs_list.append(lines_group.copy())
 
         return staffs_list
 
+    def fill_gaps(g):
+        new_positions = []
+        for i in range(len(g) - 1):
+            if g[i + 1] - 2 == g[i]:
+                new_positions.append(g[i])
+                new_positions.append(g[i] + 1)
+            else:
+                new_positions.append(g[i])
+        return new_positions
+
     filled = fill_gaps(generator)
     merged = merge_thick_lines(filled)
-    staffs = group(merged)
+    staffs = [Staff(lines_group, []) for lines_group in group(merged)]
 
     return staffs
 
@@ -120,18 +116,19 @@ class StaffPositionFinder:
 
 def complete_measures_positions(staffs, img):
     threshold = 0.9
-    colour_threshold = 200
+    colour_threshold = 1
     for staff in staffs:
         x = np.shape(img)[1]
         avg = np.mean(img, axis=2)
+        y_range = staff.line_positions[4] - staff.line_positions[0]
 
         lst = []
         for i in range(x):
-            c = np.count_nonzero(avg[staff.line_positions[0]:staff.line_positions[4], i] < colour_threshold)
-            if c / x > threshold:
+            c = np.count_nonzero(avg[round(staff.line_positions[0]):round(staff.line_positions[4]), i] < colour_threshold)
+            if c / y_range > threshold:
                 lst.append(i)
 
-        staff.measure_positions = lst
+        staff.measure_positions = merge_thick_lines(lst)
 
 
 # def getPixelMap():
@@ -143,13 +140,15 @@ def complete_measures_positions(staffs, img):
 #     x = np.shape(image)[0]
 #     y = np.shape(image)[1]
 #
-#     a = StaffPositionFinder()
-#     res = [round(x) for x in a.get_staff(image)]
+#     staffs = get_staff_positions(image)
+#     line_positions = [staff.line_positions for staff in staffs]
+#     line_positions = np.array(line_positions, dtype=np.uintc)
+#     line_positions = np.reshape(line_positions, [-1])
 #
 #     im = np.zeros([x, y, 3], dtype=np.uintc)
 #     im.fill(int(255))
-#     for i in range(len(res)):
-#         im[res[i], :, :] = 0
+#     for i in range(len(line_positions)):
+#         im[line_positions[i], :, :] = 0
 #     return im
 #
 #
