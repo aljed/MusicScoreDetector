@@ -6,7 +6,7 @@ import random
 import parameters as p
 import xml.etree.ElementTree as ET
 import math
-
+from tensorflow.keras.applications.vgg19 import preprocess_input
 
 def create_bb(x, y, width, height, x_transposition, y_transposition):
     return BoundingBox(xmin = x - width/2 + x_transposition,
@@ -54,7 +54,7 @@ class BoundingBox:
                            new_bb.ymin + (new_bb.ymax - new_bb.ymin) * self.ymin,
                            new_bb.ymin + (new_bb.ymax - new_bb.ymin) * self.ymax)
 
-    def serialize(self, slice_bb) -> list[float]:
+    def serialize(self, slice_bb) -> list:
         new_bb = self.get_relative_bb2(slice_bb)
         width = abs(new_bb.xmax - new_bb.xmin) / p.GX
         height = abs(new_bb.ymax - new_bb.ymin) / p.GY
@@ -87,7 +87,11 @@ class Data:
     bb: BoundingBox
 
     def to_ts(self, output_dim, classes, bb: BoundingBox):
-        return (np.reshape(np.array(self.img) / 255, (p.Y, p.X, 3)),
+        # processed_image = preprocess_input(np.reshape(self.img, [p.Y, p.X, 3]))
+        # return (processed_image,
+        #         np.reshape(serialize_element_list(self.elements, classes, bb), output_dim))
+
+        return (np.reshape(np.array(self.img) , (p.Y, p.X, 3)),
                 np.reshape(serialize_element_list(self.elements, classes, bb), output_dim))
 
 
@@ -101,19 +105,22 @@ class Generator:
     def generator(self, files):
         xs_ys = []
         for file in files:
-            if not isinstance(file, str):
-                file = file.decode("utf-8")
-            splitted = split_image(file)
-            page = self.pages[file.replace(".png", ".xml")]
-            if len(xs_ys) < p.BATCH_SIZE:
-                xs_ys_new = [Data(s.slice, page.retrieve_from_box(s.bb), s.bb) for s in splitted]
-                xs_ys += [d.to_ts(self.output_dim, self.classes, d.bb) for d in xs_ys_new if len(d.elements) > 0]
-            if len(xs_ys) >= p.BATCH_SIZE:
-                elements_to_yield = xs_ys[0:p.BATCH_SIZE]
-                if len(xs_ys) > p.BATCH_SIZE:
-                    xs_ys = xs_ys[p.BATCH_SIZE:]
-                yield (np.array([i for i, j in elements_to_yield]),
-                       np.array([j for i, j in elements_to_yield]))
+            while True:
+                if len(xs_ys) < p.BATCH_SIZE:
+                    if not isinstance(file, str):
+                        file = file.decode("utf-8")
+                    splitted = split_image(file)
+                    page = self.pages[file.replace(".png", ".xml")]
+                    xs_ys_new = [Data(s.slice, page.retrieve_from_box(s.bb), s.bb) for s in splitted]
+                    xs_ys += [d.to_ts(self.output_dim, self.classes, d.bb) for d in xs_ys_new if len(d.elements) > 0]
+                if len(xs_ys) >= p.BATCH_SIZE:
+                    elements_to_yield = xs_ys[0:p.BATCH_SIZE]
+                    if len(xs_ys) > p.BATCH_SIZE:
+                        xs_ys = xs_ys[p.BATCH_SIZE:]
+                    yield (np.array([i for i, j in elements_to_yield]),
+                           np.array([j for i, j in elements_to_yield]))
+                else:
+                    break
 
 
 def serialize_element_list(elements, classes, bb: BoundingBox):
@@ -181,7 +188,7 @@ class Retriever:
                     f'{round(counter * 100 / num_of_files)}% of the files processed, we are at {counter} in {num_of_files}.')
             counter += 1
             page = Page(f)
-            tree = ET.parse(xml_path + "\\" + f)
+            tree = ET.parse(xml_path + "/" + f)
             root = tree.getroot()
 
             for obj in root.iter('object'):
@@ -213,7 +220,7 @@ class PartData:
 
 
 def split_image(filename):
-    image = np.array(im.imread(p.PNG_PATH + '\\' + filename))
+    image = np.array(im.imread(p.PNG_PATH + '/' + filename))
     shape = np.shape(image)
     max_y = shape[0] - p.Y
     max_x = shape[1] - p.X
