@@ -29,7 +29,7 @@ class Staff:
 
 def get_border_pixels(staffs):
     borders = []
-    for i in range(len(staffs)-2):
+    for i in range(len(staffs)-1):
         borders.append(staffs[i].get_border_between_staffs(staffs[i+1]))
     return borders
 
@@ -83,6 +83,8 @@ def check_staff(generator):
                 new_positions.append(g[i] + 1)
             else:
                 new_positions.append(g[i])
+                if i == len(g) - 2:
+                    new_positions.append(g[i + 1])
         return new_positions
 
     filled = fill_gaps(generator)
@@ -95,8 +97,8 @@ def check_staff(generator):
 class StaffPositionFinder:
 
     def __init__(self):
-        self.colour_threshold = 1
-        self.start_threshold = 0.3
+        self.colour_threshold = 100
+        self.start_threshold = 0.7
 
     def get_staff(self, image):
         return check_staff(self.get_positions(image, self.start_threshold))
@@ -115,8 +117,8 @@ class StaffPositionFinder:
 
 
 def complete_measures_positions(staffs, img):
-    threshold = 0.9
-    colour_threshold = 1
+    threshold = 0.99
+    colour_threshold = 100
     for staff in staffs:
         x = np.shape(img)[1]
         avg = np.mean(img, axis=2)
@@ -134,9 +136,9 @@ def complete_measures_positions(staffs, img):
 # def getPixelMap():
 #     files = os.listdir(PICTURES)
 #     # random.shuffle(files)
-#     file = files[0]
+#     file = "test.png"
 #     print(file)
-#     image = mpimg.imread(PICTURES + '\\' + file)
+#     image = mpimg.imread(PICTURES + '\\' + file) * 255
 #     x = np.shape(image)[0]
 #     y = np.shape(image)[1]
 #

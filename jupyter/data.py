@@ -6,13 +6,8 @@ import random
 import parameters as p
 import xml.etree.ElementTree as ET
 import math
-
-
-def create_bb(x, y, width, height, x_transposition, y_transposition):
-    return BoundingBox(xmin=x - width/2 + x_transposition,
-                       xmax=x + width/2 + x_transposition,
-                       ymin=y - height/2 + y_transposition,
-                       ymax=y + height/2 + y_transposition)
+import tensorflow as tf
+from PIL import Image
 
 
 @dataclass
@@ -23,7 +18,7 @@ class BoundingBox:
     ymax: float
 
     def get_area(self):
-        return (self.xmax - self.xmin) / (self.ymax - self.ymin)
+        return (self.xmax - self.xmin) * (self.ymax - self.ymin)
 
     def common_area(self, pos):  # returns None if rectangles don't intersect
         dx = min(self.xmax, pos.xmax) - max(self.xmin, pos.xmin)
@@ -42,7 +37,7 @@ class BoundingBox:
     def get_normalized(self, x, y):
         return BoundingBox(self.xmin / x, self.xmax / x, self.ymin / y, self.ymax / y)
 
-    def get_relative_bb2(self, new_bb):
+    def get_relative_bb2(self, new_bb): # mam koordynaty w całym obrazku ale chcę w podanym wycinku
         return BoundingBox((self.xmin - new_bb.xmin) / (new_bb.xmax - new_bb.xmin),
                            (self.xmax - new_bb.xmin) / (new_bb.xmax - new_bb.xmin),
                            (self.ymin - new_bb.ymin) / (new_bb.ymax - new_bb.ymin),
@@ -54,30 +49,11 @@ class BoundingBox:
                            new_bb.ymin + (new_bb.ymax - new_bb.ymin) * self.ymin,
                            new_bb.ymin + (new_bb.ymax - new_bb.ymin) * self.ymax)
 
-    def serialize(self, slice_bb) -> list:
-        new_bb = self.get_relative_bb2(slice_bb)
-        width = abs(new_bb.xmax - new_bb.xmin) / p.GY
-        height = abs(new_bb.ymax - new_bb.ymin) / p.GX
-        x = abs(self.xmax + self.xmin) / 2
-        y = abs(self.ymax + self.ymin) / 2
-        return [abs(width) % 1,
-                abs(height) % 1,
-                abs((x - slice_bb.xmin) / (slice_bb.xmax - slice_bb.xmin)) % 1,
-                abs((y - slice_bb.ymin) / (slice_bb.ymax - slice_bb.ymin)) % 1]
-
 
 @dataclass
 class Element:
     typ: str
     bounding_box: BoundingBox
-
-    def serialize(self, classes, cell_bb: BoundingBox, empty=False):
-        confidence_score = 0
-        prob_list = np.zeros([len(classes)])
-        if not empty:
-            confidence_score = 1
-            prob_list[classes[self.typ]] = 1.0
-        return np.concatenate([[confidence_score], self.bounding_box.serialize(cell_bb), prob_list])
 
 
 @dataclass
@@ -85,73 +61,105 @@ class Data:
     img: list
     elements: list
     bb: BoundingBox
-
-    def to_ts(self, output_dim, classes, bb: BoundingBox):
-        return (np.reshape(np.array(self.img), (p.Y, p.X, 3)),
-                np.reshape(serialize_element_list(self.elements, classes, bb), output_dim))
+    page_Y: int
+    page_X: int
 
 
-class Generator:
+class TFRecordGenerator:
 
-    def __init__(self, pages, output_dim, classes) -> None:
+    def __init__(self, pages, classes, params: p.Params) -> None:
         self.pages = pages
-        self.output_dim = output_dim
         self.classes = classes
+        self.params = params
 
-    def generator(self, files):
-        xs_ys = []
+    def generate_example(self, number, filename, number_in_file, data):
+
+        resultant_filename = filename + str(number_in_file)
+
+        relative_bbs = [e.bounding_box.get_relative_bb2(data.bb) for e in data.elements]
+
+        xmins = [e.xmin for e in relative_bbs]
+        xmaxs = [e.xmax for e in relative_bbs]
+        ymins = [e.ymin for e in relative_bbs]
+        ymaxs = [e.ymax for e in relative_bbs]
+        types = [e.typ.encode("utf-8") for e in data.elements]
+        labels = [self.classes[e.typ] + 1 for e in data.elements]
+
+        import io
+
+        def image_to_byte_array(image:Image):
+            imgByteArr = io.BytesIO()
+            image.save(imgByteArr, format="png")
+            imgByteArr = imgByteArr.getvalue()
+            return imgByteArr
+
+        example = tf.train.Example(features=tf.train.Features(feature={
+            "image/height": tf.train.Feature(int64_list=tf.train.Int64List(value=[self.params.Y])),
+            "image/width": tf.train.Feature(int64_list=tf.train.Int64List(value=[self.params.X])),
+            "image/filename": tf.train.Feature(bytes_list=tf.train.BytesList(
+                value=[resultant_filename.encode("utf-8")])),
+            "image/source_id": tf.train.Feature(bytes_list=tf.train.BytesList(value=[str(number).encode("utf-8")])),
+            "image/key/sha256": tf.train.Feature(bytes_list=tf.train.BytesList(value=[resultant_filename.encode("utf-8")])),
+            "image/encoded": tf.train.Feature(bytes_list=tf.train.BytesList(value=[image_to_byte_array(Image.fromarray(data.img))])),
+            "image/format": tf.train.Feature(bytes_list=tf.train.BytesList(value=["png".encode("utf8")])),
+            "image/object/bbox/xmin": tf.train.Feature(float_list=tf.train.FloatList(value=xmins)),
+            "image/object/bbox/xmax": tf.train.Feature(float_list=tf.train.FloatList(value=xmaxs)),
+            "image/object/bbox/ymin": tf.train.Feature(float_list=tf.train.FloatList(value=ymins)),
+            "image/object/bbox/ymax": tf.train.Feature(float_list=tf.train.FloatList(value=ymaxs)),
+            "image/object/class/text": tf.train.Feature(bytes_list=tf.train.BytesList(value=types)),
+            "image/object/class/label": tf.train.Feature(int64_list=tf.train.Int64List(value=labels)),
+            "image/object/difficult": tf.train.Feature(int64_list=tf.train.Int64List(value=np.zeros(np.shape(labels), dtype=np.int).tolist())),
+            "image/object/truncated": tf.train.Feature(int64_list=tf.train.Int64List(value=np.zeros(np.shape(labels), dtype=np.int).tolist())),
+            "image/object/view": tf.train.Feature(bytes_list=tf.train.BytesList(
+                 value=np.full(np.shape(labels), "Unspecified".encode("utf-8")).tolist())),
+        }))
+
+        return example
+
+    def generate_records(self, files, output_path):
+
+        def save_record(serialized_examples, index: int):
+            tf_writer = tf.io.TFRecordWriter((output_path + '/' + 'record' + str(index)).encode("utf-8"))
+            for serialized_examples in serialized_examples:
+                tf_writer.write(serialized_examples)
+            tf_writer.close()
+
+        examples = []
+        example_number = 0
+        record_number = 0
+
         for file in files:
+
             file_used = False
+
             while True:
-                if len(xs_ys) < p.BATCH_SIZE and file_used is False:
+
+                if len(examples) < self.params.RECORDS_TO_SAVE and file_used is False:
                     file_used = True
                     if not isinstance(file, str):
                         file = file.decode("utf-8")
-                    xs_ys_new = split_image(file, self.pages[file.replace(".png", ".xml")])
-                    xs_ys += [d.to_ts(self.output_dim, self.classes, d.bb) for d in xs_ys_new]
-                if len(xs_ys) >= p.BATCH_SIZE:
-                    elements_to_yield = xs_ys[0:p.BATCH_SIZE]
-                    if len(xs_ys) > p.BATCH_SIZE:
-                        xs_ys = xs_ys[p.BATCH_SIZE:]
-                    if len(xs_ys) == p.BATCH_SIZE:
-                        xs_ys = []
-                    yield (np.array([i for i, j in elements_to_yield]),
-                           np.array([j for i, j in elements_to_yield]))
+                    records_new = split_image(file, self.pages[file.replace(".png", ".xml")], self.params.PNG_PATH)
+                    example_in_file_number = 0
+                    for d in records_new:
+                        examples.append(self.generate_example(
+                            example_number, file, example_in_file_number, d))
+                        example_number += 1
+                        example_in_file_number += 1
+
+                if len(examples) >= self.params.RECORDS_TO_SAVE:
+                    elements_to_yield = examples[0:self.params.RECORDS_TO_SAVE]
+                    elements_to_yield = [e.SerializeToString() for e in elements_to_yield]
+
+
+                    if len(examples) > self.params.RECORDS_TO_SAVE:
+                        examples = examples[self.params.RECORDS_TO_SAVE:]
+                    else:
+                        examples = []
+
+                    save_record(elements_to_yield, record_number)
+                    record_number += 1
                 else:
                     break
-
-
-def serialize_element_list(elements, classes, bb: BoundingBox):
-    output_array = np.empty([p.GX * p.GY, len(classes) + 5])
-
-    for i in range(p.GX * p.GY):
-        current_box_row_index = math.floor(i / p.GY)
-        current_box_column_index = i % p.GY
-        unit_cell_width = 1 / p.GY
-        unit_cell_height = 1 / p.GX
-        current_bb = BoundingBox(current_box_column_index * unit_cell_width,
-                                 (current_box_column_index + 1) * unit_cell_width,
-                                 current_box_row_index * unit_cell_height,
-                                 (current_box_row_index + 1) * unit_cell_height)
-
-        def is_within_current_cell(e):
-            resultant_bb = e.bounding_box.get_relative_bb2(bb)
-            x = (resultant_bb.xmax + resultant_bb.xmin) / 2
-            y = (resultant_bb.ymax + resultant_bb.ymin) / 2
-            return current_bb.is_point_within(x, y)
-
-        elements_in_current_cell = [e for e in elements if is_within_current_cell(e)]
-        if len(elements_in_current_cell) == 0:
-            random_class_index = random.randrange(len(classes))
-            random_element = Element(list(classes.keys())[random_class_index],
-                                     BoundingBox(random.random(), random.random(), random.random(), random.random()))
-            output_array[i, :] = random_element.serialize(classes, current_bb.get_relative_bb(bb), True)
-        else:
-            output_array[i, :] = elements_in_current_cell[0].serialize(classes, current_bb.get_relative_bb(bb), False)
-
-    reshaped = np.reshape(np.array(output_array), (p.GX * p.GY * (len(classes) + 5)))
-
-    return reshaped
 
 
 class Page:
@@ -171,42 +179,40 @@ class Page:
         return filtered
 
 
-class Retriever:
+def retrieve(classes: list, xml_path=p.XML_PATH):
 
-    def retrieve(self, classes: list, xml_path=p.XML_PATH):
+    files = os.listdir(xml_path)
+    pages = {}
+    num_of_files = len(files)
+    counter = 1
 
-        files = os.listdir(xml_path)
-        pages = {}
-        num_of_files = len(files)
-        counter = 1
+    for f in files:
 
-        for f in files:
+        if counter % 500 == 0:
+            print(
+                f'{round(counter * 100 / num_of_files)}% of the files processed, '
+                f'we are at {counter} in {num_of_files}.')
+        counter += 1
+        page = Page(f)
+        tree = ET.parse(xml_path + "/" + f)
+        root = tree.getroot()
 
-            if counter % 500 == 0:
-                print(
-                    f'{round(counter * 100 / num_of_files)}% of the files processed, '
-                    f'we are at {counter} in {num_of_files}.')
-            counter += 1
-            page = Page(f)
-            tree = ET.parse(xml_path + "/" + f)
-            root = tree.getroot()
+        for obj in root.iter('object'):
+            raw_bb = obj.find('bndbox')
+            typ = obj.find('name').text
+            if classes.__contains__(typ):
+                page.add(Element(
+                    obj.find('name').text,
+                    BoundingBox(
+                        float(raw_bb.find('xmin').text),
+                        float(raw_bb.find('xmax').text),
+                        float(raw_bb.find('ymin').text),
+                        float(raw_bb.find('ymax').text)
+                    )))
 
-            for obj in root.iter('object'):
-                raw_bb = obj.find('bndbox')
-                typ = obj.find('name').text
-                if classes.__contains__(typ):
-                    page.add(Element(
-                        obj.find('name').text,
-                        BoundingBox(
-                            float(raw_bb.find('xmin').text),
-                            float(raw_bb.find('xmax').text),
-                            float(raw_bb.find('ymin').text),
-                            float(raw_bb.find('ymax').text)
-                        )))
+        pages[f] = page
 
-            pages[f] = page
-
-        return pages
+    return pages
 
 
 @dataclass
@@ -215,8 +221,8 @@ class PartData:
     bb: BoundingBox
 
 
-def split_image(filename, page: Page) -> list:  # of Data
-    image = np.array(im.imread(p.PNG_PATH + '/' + filename))
+def split_image(filename, page: Page, png_path) -> list:  # of Data
+    image = np.array(im.imread(png_path + '/' + filename))
     shape = np.shape(image)
     max_y = shape[0] - p.Y
     max_x = shape[1] - p.X
@@ -232,15 +238,21 @@ def split_image(filename, page: Page) -> list:  # of Data
         ymax_random = math.floor(min(max_y, e.bounding_box.ymin * shape[0]))
         ymin_random = math.ceil(max(0, e.bounding_box.ymax * shape[0] - p.Y))
 
+        if ymin_random >= ymax_random or xmin_random >= xmax_random:
+            # print(ymin_random, ymax_random, xmin_random, xmax_random)
+            # print(e.bounding_box.xmax, e.bounding_box.xmin, e.bounding_box.ymax, e.bounding_box.ymin)
+            print(filename, e.typ)
+            continue
+
         random_y = random.randrange(int(ymin_random), int(ymax_random))
         random_x = random.randrange(int(xmin_random), int(xmax_random))
 
-        img_slice = image[random_y:random_y + p.Y, random_x:random_x + p.X, 0:3]
+        img_slice = image[random_y:random_y + p.Y, random_x:random_x + p.X, 0:4]
         parts.append(PartData(img_slice,
                               BoundingBox(random_x / shape[1], (random_x + p.X) / shape[1], random_y / shape[0],
                                           (random_y + p.Y) / shape[0])))
 
-    data_from_page = [Data(s.slice, page.retrieve_from_box(s.bb), s.bb) for s in parts]
+    data_from_page = [Data(s.slice, page.retrieve_from_box(s.bb), s.bb, shape[0], shape[1]) for s in parts]
 
     return data_from_page
 

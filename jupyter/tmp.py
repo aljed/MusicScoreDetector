@@ -1,68 +1,55 @@
-import random
-import data
+import automl.efficientdet.model_inspect as inspection
+from jupyter import Converter
+from jupyter.parameters import Params
+import data as d
 import os
-import parameters as p
-import importlib
-import pickle
-import numpy as np
 
-importlib.reload(p)
-importlib.reload(data)
-
-
-def dump_data():
-    random.seed()
-    classes = data.retrieve_class_names()
-    output_dim = p.GX * p.GY * (5 + len(classes))
-    pages = data.Retriever().retrieve(classes)
-
-    files = os.listdir(p.PNG_PATH)
-    generator = data.Generator(pages, output_dim, classes).generator(files)
-    i = 1
-
-    e = [generator.__next__()]
-
-    while True:
-        if len(e) == 64:
-            with open('data\\' + str(i / 64) + '.pkl', 'wb') as outp:
-                print(i)
-                random.shuffle(e)
-                pickle.dump(e, outp, pickle.HIGHEST_PROTOCOL)
-            e = []
-        a = next(generator, None)
-        if a is None:
-            break
-        e.append(a)
-        i += 1
-
-    with open('data\\' + str(i / 64) + '.pkl', 'wb') as outp2:
-        random.shuffle(e)
-        pickle.dump(e, outp2, pickle.HIGHEST_PROTOCOL)
+# classes = (d.retrieve_class_names())
+# aa = {}
+# for k in classes.keys():
+#     v = classes[k]
+#     aa[int(v) + 1] = k
+# print(aa)
 
 
-def generate_data(data_dir_path, batch_size, output_size):
-    files = os.listdir(data_dir_path)
-    pad = []
-    for file in files:
-        with open(data_dir_path + '/' + file, 'rb') as data_file:
-            part_data = pickle.load(data_file)
-        part_data = pad + part_data
-        pad_size = len(part_data) % batch_size
-        batches_number = int(len(part_data) / batch_size)
-        pad = part_data[len(part_data) - pad_size:]
-        part_data = part_data[:len(part_data) - pad_size]
-        for j in range(batches_number):
-            batch = part_data[j * batch_size:(j + 1) * batch_size]
-            yield (np.reshape(np.array([i for i, j in batch]), (batch_size, p.X, p.Y, 3)),
-                   np.reshape(np.array([j for i, j in batch]), (batch_size, output_size)))
+# predictor = inspection.get_prediction_function('./models/efficientdet-d1-finetune', './logs', 'efficientdet-d1', './configs/default.yaml')
+#
+#
+# params = Params(X=128,
+#                 Y=128,
+#                 RECORDS_TO_SAVE=8192,
+#                 BATCH_SIZE=32,
+#                 CLASSES=['noteheadBlack'],
+#                 PNG_PATH = r'/content/drive/MyDrive/Nuty/deep_scores_dense/deep_scores_dense/images_png/',
+#                 XML_PATH = r'/content/drive/MyDrive/Nuty/deep_scores_dense/deep_scores_dense/xml_annotations/',
+#                 CONVERTED_PATH = r'/content/drive/MyDrive/Nuty/deep_scores_dense/deep_scores_dense/converted/',
+#                 CLASSES_PATH = r'/content/drive/MyDrive/Nuty/deep_scores_dense/deep_scores_dense/meta_info/')
+#
+# converter = Converter.Converter('', 80, 80, predictor, params, 0.9, 0.3)
+# print(converter.convert('../deep_scores_dense/images_png/test.png'))
+#
+#
+#
+# from keras import backend as K
+# K.clear_session()
 
-classes = data.retrieve_class_names()
-output_dim = p.GX * p.GY * (5 + len(classes))
 
-a = generate_data('data', 8, output_dim ).__next__()
-b = generate_data('data', 8, output_dim).__next__()
+params = Params(X=256,
+                Y=256,
+                RECORDS_TO_SAVE=8192,
+                BATCH_SIZE=32,
+                CLASSES = ['accidentalFlat','accidentalFlatSmall','accidentalNatural','accidentalNaturalSmall','accidentalSharp',
+                    'accidentalSharpSmall','augmentationDot','flag128thUp','flag16thDown','flag16thUp','flag32ndDown','flag32ndUp',
+                    'flag64thDown','flag64thUp','flag8thDown','flag8thDownSmall','flag8thUp','flag8thUpSmall','keyFlat','keyNatural','keySharp',
+                    'noteheadBlackSmall','noteheadDoubleWhole','noteheadDoubleWholeSmall','noteheadHalf','noteheadHalfSmall',
+                    'noteheadWhole','noteheadWholeSmall','rest128th','rest16th','rest32nd','rest64th','rest8th','restDoubleWhole','restHBar',
+                    'restHalf','restLonga','restMaxima','restQuarter','restWhole','tuplet3','tuplet6'],
+                PNG_PATH=r'C:\Users\user\PycharmProjects\nuty5\deep_scores_dense\images_png',
+                XML_PATH = r'C:\Users\user\PycharmProjects\nuty5\deep_scores_dense\xml_annotations',
+                CONVERTED_PATH = r'C:\Users\user\PycharmProjects\nuty5\deep_scores_dense\converted',
+                CLASSES_PATH = r'C:\Users\user\PycharmProjects\nuty5\deep_scores_dense\meta_info')
 
-comparison = a[0][0] == b[0][0]
-equal_arrays = comparison.all()
-
-print(equal_arrays)
+files = os.listdir(params.PNG_PATH)
+classes = d.retrieve_class_names()
+generator = d.TFRecordGenerator(d.retrieve(classes, params.XML_PATH), classes, params)
+generator.generate_records(files, 'data')

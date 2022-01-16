@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from StaffPositionRetriever import Staff
 from Converter import ElementsMap
 import xml.etree.cElementTree as ET
+import math
 
 
 @dataclass
@@ -37,29 +38,30 @@ class Measure:
         for chord in chords:
             for note in chord:
                 note_xml = ET.Element("note", {"default-x": str(note.position.xmin)})
-                pitch_xml = get_pitch_xml((note.position.xmax + note.position.xmin) / 2, staff)
+                pitch_xml = get_pitch_xml((note.position.ymax + note.position.ymin) / 2, staff)
                 duration_element = ET.Element("duration")
                 duration_element.text = "1"
-                if len(chord) > 1:
+                if len(chord) > 1 and note != chord[0]:
                     note_xml.append(ET.Element("chord"))
                 note_xml.append(pitch_xml)
                 note_xml.append(duration_element)
                 root.append(note_xml)
+        return root
 
 
-def get_pitch_xml(x, staff):
+def get_pitch_xml(y, staff):
     pitch_xml = ET.Element("pitch")
     octave_xml = ET.Element("octave")
     step_xml = ET.Element("step")
-    d = (staff.line_positions[4] - staff.line_positions[0]) / 4
-    y = 38 - 2 * ((staff.line_positions[0] - x) / d)
-    assert 0 <= y <= 70
-    step = y % 7
+    d = round((staff.line_positions[4] - staff.line_positions[0]) / 4)
+    y_normalized = round(38 + 2 * ((staff.line_positions[0] - y) / d))
+    assert 0 <= y_normalized <= 70
+    step = math.floor(y_normalized % 7)
     assert 0 <= step <= 6
     steps_map = {0: "C", 1: "D", 2: "E", 3: "F", 4: "G", 5: "A", 6: "B"}
     step_xml.text = steps_map[step]
-    octave = (y - step) / 7
-    octave.text = octave
-    pitch_xml.append(octave_xml)
+    octave = int((y_normalized - step) / 7)
+    octave_xml.text = str(octave)
     pitch_xml.append(step_xml)
+    pitch_xml.append(octave_xml)
     return pitch_xml
