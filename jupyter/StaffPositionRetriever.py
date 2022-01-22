@@ -1,4 +1,6 @@
 import math
+from random import random
+
 import numpy as np
 import os
 import matplotlib.image as mpimg
@@ -99,19 +101,59 @@ class StaffPositionFinder:
     def __init__(self):
         self.colour_threshold = 100
         self.start_threshold = 0.7
+        self.min_theta = -92
+        self.max_theta = -88
 
     def get_staff(self, image):
         return check_staff(self.get_positions(image, self.start_threshold))
 
     def get_positions(self, image, threshold):
-        x = np.shape(image)[0]
-        avg = np.mean(image, axis=2)
+        height = np.shape(image)[0]
+        width = np.shape(image)[1]
+        import math
+        dtheta = 0.5
+        dr = 0.5
+        max_r = max(height, width)
+        num_of_rs = math.ceil(max_r / dr)
+        num_of_thetas = math.ceil(abs(self.max_theta - self.min_theta)/ dtheta)
+        accumulator = np.zeros([num_of_thetas, num_of_rs])
+        image = image/255
 
+        theta_dict = {theta : (math.cos(theta), math.sin(theta)) for theta in [self.min_theta + dtheta * j for j in range(num_of_thetas)]}
+
+        for y in range(height):
+            for x in range(width):
+                theta = self.min_theta
+                sum = image[y][x][0] + image[y][x][1] + image[y][x][2]
+                if sum < 3:
+                    for theta_index in range(num_of_thetas):
+                        r = round(x * theta_dict[theta][0] + y * theta_dict[theta][1])
+                        accumulator[theta_index][r] += sum
+                        theta += dtheta
+
+        # theta = self.min_theta
+        # for theta_index in range(num_of_thetas):
+        #     cos = math.cos(math.radians(theta))
+        #     sin = math.sin(math.radians(theta))
+        #     r = 0
+        #     for r_index in range(num_of_rs):
+        #         x_start = max(0, int(r / cos))
+        #         for x in range(x_start, width, 10):
+        #             y_pos_ceil = int((r - x * cos) / sin)
+        #             if 0 <= y_pos_ceil < height:
+        #                 accumulator[theta_index][r_index] += image[y_pos_ceil][x][0] + image[y_pos_ceil][x][1] + image[y_pos_ceil][x][2]
+        #             elif y_pos_ceil < 0:
+        #                 break
+        #     r += dr
+        #     theta += dtheta
+
+        # avg = np.mean(image, axis=2)
+        #
         lst = []
-        for i in range(x):
-            c = np.count_nonzero(avg[i, :] < self.colour_threshold)
-            if c / x > threshold:
-                lst.append(i)
+        # for i in range(height):
+        #     c = np.count_nonzero(avg[i, :] < self.colour_threshold)
+        #     if c / height > threshold:
+        #         lst.append(i)
 
         return lst
 
@@ -133,28 +175,30 @@ def complete_measures_positions(staffs, img):
         staff.measure_positions = merge_thick_lines(lst)
 
 
-# def getPixelMap():
-#     files = os.listdir(PICTURES)
-#     # random.shuffle(files)
-#     file = "test.png"
-#     print(file)
-#     image = mpimg.imread(PICTURES + '\\' + file) * 255
-#     x = np.shape(image)[0]
-#     y = np.shape(image)[1]
-#
-#     staffs = get_staff_positions(image)
-#     line_positions = [staff.line_positions for staff in staffs]
-#     line_positions = np.array(line_positions, dtype=np.uintc)
-#     line_positions = np.reshape(line_positions, [-1])
-#
-#     im = np.zeros([x, y, 3], dtype=np.uintc)
-#     im.fill(int(255))
-#     for i in range(len(line_positions)):
-#         im[line_positions[i], :, :] = 0
-#     return im
-#
-#
-# i = getPixelMap()
-# fig, ax = plt.subplots()
-# shown = ax.imshow(i)
-# plt.show()
+def getPixelMap():
+    import random
+    files = os.listdir(PICTURES)
+    random.shuffle(files)
+    file = "test.png"
+    #file = files[0]
+    print(file)
+    image = mpimg.imread(PICTURES + '\\' + file) * 255
+    x = np.shape(image)[0]
+    y = np.shape(image)[1]
+
+    staffs = get_staff_positions(image)
+    line_positions = [staff.line_positions for staff in staffs]
+    line_positions = np.array(line_positions, dtype=np.uintc)
+    line_positions = np.reshape(line_positions, [-1])
+
+    im = np.zeros([x, y, 3], dtype=np.uintc)
+    im.fill(int(255))
+    for i in range(len(line_positions)):
+        im[line_positions[i], :, :] = 0
+    return im
+
+
+i = getPixelMap()
+fig, ax = plt.subplots()
+shown = ax.imshow(i)
+plt.show()
