@@ -1,5 +1,4 @@
 import math
-from random import random
 
 import numpy as np
 import os
@@ -7,6 +6,8 @@ import matplotlib.image as mpimg
 import matplotlib.pyplot as plt
 from dataclasses import dataclass
 from statistics import median
+
+from typing import List
 
 ANGLE = math.radians(0)
 COS = math.cos(ANGLE)
@@ -21,12 +22,19 @@ def get_staff_positions(image) -> list:
 
 
 @dataclass
+class Line:
+    r: int
+    theta: float
+
+
+@dataclass
 class Staff:
-    line_positions: list
+    lines: List[Line]
     measure_positions: list
 
     def get_border_between_staffs(self, second):
-        return (self.line_positions[4] + second.line_positions[0]) / 2
+        return Line((self.lines[4].r + second.line_positions[0].r) / 2,
+                    (self.lines[4].theta + second.line_positions[0].theta) / 2)
 
 
 def get_border_pixels(staffs):
@@ -101,8 +109,8 @@ class StaffPositionFinder:
     def __init__(self):
         self.colour_threshold = 100
         self.start_threshold = 0.7
-        self.min_theta = -92
-        self.max_theta = -88
+        self.min_theta = 88
+        self.max_theta = 92
 
     def get_staff(self, image):
         return check_staff(self.get_positions(image, self.start_threshold))
@@ -115,47 +123,26 @@ class StaffPositionFinder:
         dr = 0.5
         max_r = max(height, width)
         num_of_rs = math.ceil(max_r / dr)
-        num_of_thetas = math.ceil(abs(self.max_theta - self.min_theta)/ dtheta)
+        num_of_thetas = math.ceil(abs(self.max_theta - self.min_theta) / dtheta)
         accumulator = np.zeros([num_of_thetas, num_of_rs])
         image = image/255
 
-        theta_dict = {theta : (math.cos(theta), math.sin(theta)) for theta in [self.min_theta + dtheta * j for j in range(num_of_thetas)]}
+        theta_dict = {theta: (math.cos(math.radians(theta)), math.sin(math.radians(theta)))
+                      for theta in [self.min_theta + dtheta * j for j in range(num_of_thetas)]}
 
         for y in range(height):
-            for x in range(width):
+            for x in range(0, width, 10):
                 theta = self.min_theta
-                sum = image[y][x][0] + image[y][x][1] + image[y][x][2]
-                if sum < 3:
+                s = abs(image[y][x][0] + image[y][x][1] + image[y][x][2] - 3) / 3
+                if s > 0:
                     for theta_index in range(num_of_thetas):
                         r = round(x * theta_dict[theta][0] + y * theta_dict[theta][1])
-                        accumulator[theta_index][r] += sum
+                        accumulator[theta_index][r] += s
                         theta += dtheta
 
-        # theta = self.min_theta
-        # for theta_index in range(num_of_thetas):
-        #     cos = math.cos(math.radians(theta))
-        #     sin = math.sin(math.radians(theta))
-        #     r = 0
-        #     for r_index in range(num_of_rs):
-        #         x_start = max(0, int(r / cos))
-        #         for x in range(x_start, width, 10):
-        #             y_pos_ceil = int((r - x * cos) / sin)
-        #             if 0 <= y_pos_ceil < height:
-        #                 accumulator[theta_index][r_index] += image[y_pos_ceil][x][0] + image[y_pos_ceil][x][1] + image[y_pos_ceil][x][2]
-        #             elif y_pos_ceil < 0:
-        #                 break
-        #     r += dr
-        #     theta += dtheta
+        horizontal_lines = [i for i, s in enumerate(accumulator[4]) if s > 100]
 
-        # avg = np.mean(image, axis=2)
-        #
-        lst = []
-        # for i in range(height):
-        #     c = np.count_nonzero(avg[i, :] < self.colour_threshold)
-        #     if c / height > threshold:
-        #         lst.append(i)
-
-        return lst
+        return horizontal_lines
 
 
 def complete_measures_positions(staffs, img):
@@ -179,8 +166,8 @@ def getPixelMap():
     import random
     files = os.listdir(PICTURES)
     random.shuffle(files)
-    file = "test.png"
-    #file = files[0]
+    file = "../test.png"
+    # file = files[0]
     print(file)
     image = mpimg.imread(PICTURES + '\\' + file) * 255
     x = np.shape(image)[0]
@@ -198,7 +185,7 @@ def getPixelMap():
     return im
 
 
-i = getPixelMap()
+qwe = getPixelMap()
 fig, ax = plt.subplots()
-shown = ax.imshow(i)
+shown = ax.imshow(qwe)
 plt.show()

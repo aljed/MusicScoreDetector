@@ -1,11 +1,3 @@
-from jupyter.score_structure import data as d, parameters as p
-import importlib
-
-importlib.reload(p)
-importlib.reload(d)
-from jupyter.score_structure.parameters import Params
-import os
-
 #model 1
 M1 = ['noteheadBlack']
 # {1: noteheadBlack}
@@ -81,24 +73,3 @@ M11 = ['caesura', 'segno', 'stringsDownBow', 'stringsUpBow', 'summary', 'coda', 
        'cClefAlto', 'cClefAltoChange', 'cClefTenor', 'cClefTenorChange', 'unpitchedPercussionClef1']
 # {1: caesura, 2: segno, 3: stringsDownBow, 4: stringsUpBow, 5: summary, 6: coda, 7: ornamentMordent, 8: ornamentTrill, 9: ornamentTurn, 10: ornamentTurnInverted, 11: augmentationDot, 12: fermataAbove, 13: fermataBelow, 14: arpeggiato, 15: cClefAlto, 16: cClefAltoChange, 17: cClefTenor, 18: cClefTenorChange, 19: unpitchedPercussionClef1}
 # 19
-
-SET = [M1, M1, M2, M3, M4, M5, M6, M7, M8, M9, M10, M11]
-
-
-for i in range(7,12):
-  params = Params(X=256,
-                  Y=256,
-                  RECORDS_TO_SAVE=1024,
-                  BATCH_SIZE=32,
-                  CLASSES = SET[i],
-                  PNG_PATH=r'C:\Users\user\PycharmProjects\nuty5\deep_scores_dense\images_png',
-  XML_PATH = r'C:\Users\user\PycharmProjects\nuty5\deep_scores_dense\xml_annotations',
-  CONVERTED_PATH = r'C:\Users\user\PycharmProjects\nuty5\deep_scores_dense\converted',
-  CLASSES_PATH = r'C:\Users\user\PycharmProjects\nuty5\deep_scores_dense\meta_info'
-  )
-
-  files = os.listdir(params.PNG_PATH)
-  classes = d.retrieve_class_names(params.CLASSES)
-  generator = d.TFRecordGenerator(d.retrieve(classes, params.XML_PATH), classes, params)
-  generator.generate_records(files, 'data/m'+str(i))
-

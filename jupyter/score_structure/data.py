@@ -257,18 +257,12 @@ def split_image(filename, page: Page, png_path) -> list:  # of Data
     return data_from_page
 
 
-def retrieve_class_names():
+def retrieve_class_names(classes):
     counter = 0
     names = {}
 
-    if not p.CLASSES:
-        files = os.listdir(p.CLASSES_PATH)
-        for f in files:
-            names[f.replace('.csv', '')] = counter
-            counter += 1
-    else:
-        for index in p.CLASSES:
-            names[index] = counter
-            counter += 1
+    for index in classes:
+        names[index] = counter
+        counter += 1
 
     return names

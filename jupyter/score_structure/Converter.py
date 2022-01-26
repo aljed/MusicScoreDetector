@@ -6,20 +6,59 @@ import imageio as im
 from typing import List
 
 from data import BoundingBox
-from StaffPositionRetriever import get_border_pixels, get_staff_positions
-import deserializer as d
+from jupyter.score_structure.StaffPositionRetriever import get_border_pixels, get_staff_positions
+from jupyter.score_structure import deserializer as d
+from jupyter.score_structure.classes import ALL
 from parameters import Params
 import xml.etree.cElementTree as ET
+
+from typing import Callable
+
+
+@dataclass
+class Model:
+    predict: Callable
+    params: Params
+
+
+class MultipleModel:
+
+    def __init__(self, models: List[Model]):
+        self.models = models
+
+    def predict(self, batch, acceptance_threshold, ymins, xmins):
+        elements = []
+
+        for model in self.models:
+            predictions = model.predict(raw_images=batch)[0]
+            bb_index = 0
+
+            assert(len(predictions) == len(ymins))
+
+            for i, prediction in enumerate(predictions):
+
+                while prediction[bb_index][5] > acceptance_threshold:
+                    bb_xmin = round(prediction[bb_index][2])
+                    bb_ymin = round(prediction[bb_index][1])
+                    bb_xmax = round(prediction[bb_index][4])
+                    bb_ymax = round(prediction[bb_index][3])
+
+                    bb = BoundingBox(bb_xmin + xmins[i], bb_xmax + xmins[i], bb_ymin + ymins[i], bb_ymax + ymins[i])
+                    name = model.params.CLASSES[prediction[bb_index][3][6]]
+                    elements.append((name, bb))
+
+                    bb_index += 1
+
+        return elements
 
 
 class Converter:
 
-    def __init__(self, overlapping, y_stride, x_stride, predict, model_params: Params, acceptance_threshold, coef):
+    def __init__(self, overlapping, y_stride, x_stride, model: MultipleModel, acceptance_threshold, coef):
         self.overlapping = overlapping
         self.y_stride = y_stride
         self.x_stride = x_stride
-        self.predict = predict
-        self.model_params = model_params
+        self.model = model
         self.acceptance_threshold = acceptance_threshold
         self.coef = coef
 
@@ -29,58 +68,45 @@ class Converter:
         shape = np.shape(image)
         height = shape[0]
         width = shape[1]
-        num_of_x_strides = math.ceil((width - self.model_params.X) / self.x_stride) + 1
-        num_of_y_strides = math.ceil((height - self.model_params.Y) / self.y_stride) + 1
-        elements = ElementsMap(self.model_params.CLASSES, height, width)
+        num_of_x_strides = math.ceil((width - 256) / self.x_stride) + 1
+        num_of_y_strides = math.ceil((height - 256) / self.y_stride) + 1
+        elements_map = ElementsMap(ALL, height, width)
 
-        ymax = self.model_params.Y
+        ymax = 256
         ymin = 0
+        img_slices = []
+        ymins = []
+        xmins = []
 
         for y_stride in range(num_of_y_strides):
-
-            if ymax >= height + 128:
+            if ymax >= height + 256:
                 break
-
             if ymax > height:
-                ymin = height - self.model_params.Y
+                ymin = height - 256
                 ymax = height
-
             xmin = 0
-            xmax = self.model_params.X
+            xmax = 256
 
             for x_stride in range(num_of_x_strides):
-
-                if xmax >= width + 128:
+                if xmax >= width + 256:
                     break
-
                 if xmax > width:
-                    xmin = width - self.model_params.X
+                    xmin = width - 256
                     xmax = width
-
-                img_slice = image[ymin:ymax, xmin:xmax]
-                prediction = self.predict(raw_images=[img_slice[:,:,0:3]])[0][0]
-                bb_index = 0
-
-                while prediction[bb_index][5] > self.acceptance_threshold:
-
-                    bb_xmin = round(prediction[bb_index][2])
-                    bb_ymin = round(prediction[bb_index][1])
-                    bb_xmax = round(prediction[bb_index][4])
-                    bb_ymax = round(prediction[bb_index][3])
-
-                    bb = BoundingBox(bb_xmin + xmin, bb_xmax + xmin, bb_ymin + ymin, bb_ymax + ymin)
-                    name = self.model_params.CLASSES[0]
-                    elements.add(name, bb)
-
-                    bb_index += 1
-
+                ymins.append(ymin)
+                xmins.append(xmin)
+                img_slices.append(image[ymin:ymax, xmin:xmax, 0:3])
                 xmin += self.x_stride
                 xmax += self.x_stride
 
             ymin += self.y_stride
             ymax += self.y_stride
 
-        elements.postprocess(self.coef)
+        elements = self.model.predict(img_slices, self.acceptance_threshold, ymins, xmins)
+        for element in elements:
+            elements_map.add(element[0], element[1])
+
+        elements_map.postprocess(self.coef)
         #
         # import pickle
         # with open("demofile.txt", "wb") as f:
@@ -88,7 +114,7 @@ class Converter:
         # with open("demofile.txt", "rb") as f:
         #     (elements, image) = pickle.load(f)
 
-        return self.convert_to_xml(elements, image)
+        return self.convert_to_xml(elements_map, image)
 
     def wrap_measures(self, measure_xmls):
         pass  # todo

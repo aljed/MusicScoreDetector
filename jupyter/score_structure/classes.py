@@ -19,8 +19,7 @@ CLEFS = ['cClefAlto', 'cClefAltoChange', 'cClefTenor', 'cClefTenorChange', 'clef
          'unpitchedPercussionClef1', 'gClef', 'gClefChange']
 
 NOTES = [ 'noteheadBlack', 'noteheadBlackSmall', 'noteheadDoubleWhole', 'noteheadDoubleWholeSmall', 'noteheadHalf',
-          'noteheadHalfSmall', 'noteheadWhole', 'noteheadWholeSmall', 'graceNoteAcciaccaturaStemDown',
-          'graceNoteAcciaccaturaStemUp', 'graceNoteAppoggiaturaStemDown', 'graceNoteAppoggiaturaStemUp']
+          'noteheadHalfSmall', 'noteheadWhole', 'noteheadWholeSmall']
 
 GRACES = ['graceNoteAcciaccaturaStemDown',
           'graceNoteAcciaccaturaStemUp', 'graceNoteAppoggiaturaStemDown', 'graceNoteAppoggiaturaStemUp']
@@ -49,8 +48,8 @@ ALL = ['accidentalDoubleFlat', 'accidentalDoubleSharp', 'accidentalFlat', 'accid
  'flag64thUp', 'flag8thDown', 'flag8thDownSmall', 'flag8thUp', 'flag8thUpSmall',
  'timeSig0', 'timeSig1', 'timeSig12', 'timeSig16', 'timeSig2', 'timeSig3', 'timeSig4', 'timeSig5', 'timeSig6', 'timeSig7', 'timeSig8', 'timeSig9', 'timeSigCommon', 'timeSigCutCommon']
 
-MODIFIER_TYPES = [ACCIDENTALS, ACCENTS, DYNAMICS, MISC_NOTE_MODIFIERS, NUMBERS, FLAGS, GRACES]
-INDEPENDENT_TYPES = [MISC_SYMBOLS, CLEFS, NOTES, RESTS, TIME_SIGNATURES]
+MODIFIER_TYPES = [ACCIDENTALS, ACCENTS, DYNAMICS, MISC_NOTE_MODIFIERS, NUMBERS, FLAGS ]
+INDEPENDENT_TYPES = [MISC_SYMBOLS, CLEFS, NOTES, RESTS, TIME_SIGNATURES, GRACES]
 
 
 
@@ -60,3 +59,48 @@ MISC_SYMBOLS = ['brace', 'caesura', 'keyboardPedalPed', 'keyboardPedalUp', 'segn
 MISC_NOTE_MODIFIERS = ['ornamentMordent', 'ornamentTrill', 'ornamentTurn', 'ornamentTurnInverted', 'augmentationDot',
                        'fermataAbove', 'fermataBelow',  'arpeggiato']
 
+
+OFTEN = []
+OFTEN += ACCIDENTALS
+OFTEN += [ 'articStaccatoAbove', 'articStaccatoBelow']
+OFTEN += ['dynamicFF', 'dynamicFFF', 'dynamicFFFF', 'dynamicFFFFF', 'dynamicForte', 'dynamicFortePiano',
+             'dynamicMezzo', 'dynamicMF', 'dynamicMP', 'dynamicPiano', 'dynamicPP', 'dynamicPPP', 'dynamicPPPP', 'dynamicPPPPP']
+OFTEN += ['keyboardPedalPed', 'keyboardPedalUp', 'repeatDot']
+OFTEN += ['augmentationDot']
+OFTEN += ['gClef', 'gClefChange', 'fClef', 'fClefChange', 'clef15', 'clef8']
+OFTEN += [ 'noteheadBlack', 'noteheadBlackSmall', 'noteheadDoubleWhole', 'noteheadDoubleWholeSmall', 'noteheadHalf',
+          'noteheadHalfSmall', 'noteheadWhole', 'noteheadWholeSmall', 'graceNoteAcciaccaturaStemDown',
+          'graceNoteAcciaccaturaStemUp', 'graceNoteAppoggiaturaStemDown', 'graceNoteAppoggiaturaStemUp']
+OFTEN += ['rest128th', 'rest16th', 'rest32nd', 'rest64th', 'rest8th', 'restDoubleWhole', 'restHalf', 'restHBar',
+         'restLonga', 'restMaxima', 'restQuarter', 'restWhole']
+OFTEN += ['flag128thDown', 'flag128thUp', 'flag16thDown', 'flag16thUp', 'flag32ndDown', 'flag32ndUp', 'flag64thDown',
+         'flag64thUp', 'flag8thDown', 'flag8thDownSmall', 'flag8thUp', 'flag8thUpSmall']
+
+RARE = ['articAccentAbove', 'articAccentBelow', 'articMarcatoAbove', 'articMarcatoBelow', 'articStaccatissimoAbove',
+           'articStaccatissimoBelow', 'articTenutoAbove', 'articTenutoBelow']
+RARE += ['dynamicRinforzando2', 'dynamicSforzando1', 'dynamicSforzato']
+RARE += ['brace', 'caesura', 'segno', 'stringsDownBow', 'stringsUpBow', 'summary',  'coda']
+RARE += ['ornamentMordent', 'ornamentTrill', 'ornamentTurn', 'ornamentTurnInverted', 'augmentationDot',
+                       'fermataAbove', 'fermataBelow',  'arpeggiato']
+RARE += ['cClefAlto', 'cClefAltoChange', 'cClefTenor', 'cClefTenorChange', 'unpitchedPercussionClef1']
+RARE += ['fingering0', 'fingering1', 'fingering2', 'fingering3', 'fingering4', 'fingering5', 'tuplet3', 'tuplet6']
+RARE += ['timeSig0', 'timeSig1', 'timeSig12', 'timeSig16', 'timeSig2', 'timeSig3', 'timeSig4', 'timeSig5',
+                    'timeSig6', 'timeSig7', 'timeSig8', 'timeSig9', 'timeSigCommon', 'timeSigCutCommon']
+
+
+
+CLEFS = ['cClefAlto', 'cClefAltoChange', 'cClefTenor', 'cClefTenorChange', 'clef15', 'clef8', 'fClef', 'fClefChange',
+         'unpitchedPercussionClef1', 'gClef', 'gClefChange']
+
+OFTEN = ['brace', 'keyboardPedalPed', 'keyboardPedalUp',  'repeatDot', 'gClef', 'gClefChange', 'clef15', 'clef8', 'fClef', 'fClefChange']
+RARE = ['caesura', 'segno', 'stringsDownBow', 'stringsUpBow', 'summary',  'coda', 'ornamentMordent', 'ornamentTrill',
+        'ornamentTurn', 'ornamentTurnInverted', 'augmentationDot', 'fermataAbove', 'fermataBelow',  'arpeggiato',
+        'cClefAlto', 'cClefAltoChange', 'cClefTenor', 'cClefTenorChange', 'unpitchedPercussionClef1']
+
+T = RARE
+print(T)
+
+aa = {}
+for k, v in enumerate(T):
+    aa[k + 1] = v
+print(aa)
