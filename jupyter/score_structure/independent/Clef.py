@@ -5,33 +5,24 @@ from jupyter.score_structure.ScoreStructure import IndependentSymbol
 
 class Clef(IndependentSymbol):
 
-    CLEFS = ['cClefAlto', 'cClefAltoChange', 'cClefTenor', 'cClefTenorChange', 'clef15', 'clef8', 'fClef', 'fClefChange',
-         'unpitchedPercussionClef1', 'gClef', 'gClefChange']
+    CLEFS = ['clefG', 'clefCAlto', 'clefCTenor', 'clefF', 'clefUnpitchedPercussion', 'clef8', 'clef15']
 
-    CLEF_TO_SIGN_MAP = {'cClefAlto': 'C',
-                        'cClefAltoChange': 'C',
-                        'cClefTenor': 'C',
-                        'cClefTenorChange': 'C',
+    CLEF_TO_SIGN_MAP = {'clefCAlto': 'C',
+                        'clefCTenor': 'C',
                         'clef15': 'G',
                         'clef8': 'G',
-                        'fClef': 'F',
-                        'fClefChange': 'F',
-                        'unpitchedPercussionClef1': 'percussion',
-                        'gClef': 'G',
-                        'gClefChange': 'G'
+                        'clefF': 'F',
+                        'clefUnpitchedPercussion': 'percussion',
+                        'clefG': 'G'
                         }
 
     CLEF_TO_LINE_MAP = {'cClefAlto': '3',
-                        'cClefAltoChange': '3',
                         'cClefTenor': '4',
-                        'cClefTenorChange': '4',
                         'clef15': '2',
                         'clef8': '2',
-                        'fClef': '4',
-                        'fClefChange': '4',
-                        'unpitchedPercussionClef1': '',
-                        'gClef': '2',
-                        'gClefChange': '2'
+                        'clefF': '4',
+                        'clefUnpitchedPercussion': '',
+                        'clefG': '2',
                         }
 
     def create_independent_symbol(self):

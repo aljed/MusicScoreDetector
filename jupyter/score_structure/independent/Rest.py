@@ -8,7 +8,7 @@ from jupyter.score_structure.StaffPositionRetriever import Staff
 class Rest(IndependentSymbol):
 
     RESTS = ['rest128th', 'rest16th', 'rest32nd', 'rest64th', 'rest8th', 'restDoubleWhole', 'restHalf', 'restHBar',
-             'restLonga', 'restMaxima', 'restQuarter', 'restWhole']
+             'restHNr', 'restMaxima', 'restQuarter', 'restWhole']
 
     RESTS_TO_TYPE_MAP = {'rest128th': '128th',
                         'rest16th': '16th',
@@ -18,7 +18,7 @@ class Rest(IndependentSymbol):
                         'restDoubleWhole': 'breve',
                         'restHalf': 'half',
                         'restHBar': 'maxima',  # todo
-                        'restLonga': 'long',
+                        'restHNr': 'long', # todo
                         'restMaxima': 'maxima',
                         'restQuarter': 'quarter',
                         'restWhole': 'whole'

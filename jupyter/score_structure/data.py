@@ -1,13 +1,10 @@
 from dataclasses import dataclass
 import numpy as np
 import imageio as im
-import os
-import random
-import parameters as p
-import xml.etree.ElementTree as ET
-import math
+import score_structure.parameters as p
 import tensorflow as tf
 from PIL import Image
+import json
 
 
 @dataclass
@@ -69,7 +66,7 @@ class TFRecordGenerator:
 
     def __init__(self, pages, classes, params: p.Params) -> None:
         self.pages = pages
-        self.classes = classes
+        self.classes = {c: i for i, c in enumerate(classes)}
         self.params = params
 
     def generate_example(self, number, filename, number_in_file, data):
@@ -128,6 +125,8 @@ class TFRecordGenerator:
         example_number = 0
         record_number = 0
 
+        files = self.pages.keys()
+
         for file in files:
 
             file_used = False
@@ -138,7 +137,7 @@ class TFRecordGenerator:
                     file_used = True
                     if not isinstance(file, str):
                         file = file.decode("utf-8")
-                    records_new = split_image(file, self.pages[file.replace(".png", ".xml")], self.params.PNG_PATH)
+                    records_new = split_image(file, self.pages[file], self.params.PNG_PATH)
                     example_in_file_number = 0
                     for d in records_new:
                         examples.append(self.generate_example(
@@ -179,40 +178,41 @@ class Page:
         return filtered
 
 
-def retrieve(classes: list, xml_path=p.XML_PATH):
-
-    files = os.listdir(xml_path)
+def retrieve(json_path, classes=None):
+    file = open(json_path, "r")
+    json_string = json.load(file)
+    categories = json_string['categories']
+    categories = {idx: value['name'] for idx, value in categories.items() if value['annotation_set'] == 'deepscores'}
+    images = json_string['images']
+    annotations = json_string['annotations'].values()
     pages = {}
-    num_of_files = len(files)
-    counter = 1
-
-    for f in files:
-
-        if counter % 500 == 0:
+    num_of_files = len(images)
+    counter = 0
+    for image in images:
+        counter += 1
+        if counter % 100 == 0:
             print(
                 f'{round(counter * 100 / num_of_files)}% of the files processed, '
                 f'we are at {counter} in {num_of_files}.')
-        counter += 1
-        page = Page(f)
-        tree = ET.parse(xml_path + "/" + f)
-        root = tree.getroot()
-
-        for obj in root.iter('object'):
-            raw_bb = obj.find('bndbox')
-            typ = obj.find('name').text
-            if classes.__contains__(typ):
-                page.add(Element(
-                    obj.find('name').text,
-                    BoundingBox(
-                        float(raw_bb.find('xmin').text),
-                        float(raw_bb.find('xmax').text),
-                        float(raw_bb.find('ymin').text),
-                        float(raw_bb.find('ymax').text)
-                    )))
-
-        pages[f] = page
-
+        id = image['id']
+        width = image['width']
+        height = image['height']
+        page = Page(id)
+        picture_annotations = [a for a in annotations if a['img_id'] == str(id)]
+        elements = []
+        for value in picture_annotations:
+            category_name = categories[value['cat_id'][0]]
+            a_bbox = value['a_bbox']
+            if classes and category_name in classes or not classes:
+                elements.append(Element(category_name,
+                                        BoundingBox(a_bbox[0] / width, a_bbox[2] / width, a_bbox[1] / height, a_bbox[3] / height)))
+        for e in elements:
+            page.add(e)
+        pages[image['filename']] = page
     return pages
+
+
+#print(retrieve('E:\Downloads\ds2_dense\deepscores_train.json')[0])
 
 
 @dataclass
@@ -228,29 +228,26 @@ def split_image(filename, page: Page, png_path) -> list:  # of Data
     max_x = shape[1] - p.X
     parts = []
 
-    all_elements_on_page = page.elements
-
-    for e in all_elements_on_page:
-
-        xmax_random = math.floor(min(max_x, e.bounding_box.xmin * shape[1]))
-        xmin_random = math.ceil(max(0, e.bounding_box.xmax * shape[1] - p.X))
-
-        ymax_random = math.floor(min(max_y, e.bounding_box.ymin * shape[0]))
-        ymin_random = math.ceil(max(0, e.bounding_box.ymax * shape[0] - p.Y))
-
-        if ymin_random >= ymax_random or xmin_random >= xmax_random:
-            # print(ymin_random, ymax_random, xmin_random, xmax_random)
-            # print(e.bounding_box.xmax, e.bounding_box.xmin, e.bounding_box.ymax, e.bounding_box.ymin)
-            print(filename, e.typ)
-            continue
-
-        random_y = random.randrange(int(ymin_random), int(ymax_random))
-        random_x = random.randrange(int(xmin_random), int(xmax_random))
-
-        img_slice = image[random_y:random_y + p.Y, random_x:random_x + p.X, 0:4]
-        parts.append(PartData(img_slice,
-                              BoundingBox(random_x / shape[1], (random_x + p.X) / shape[1], random_y / shape[0],
-                                          (random_y + p.Y) / shape[0])))
+    ymin = 0
+    yend = False
+    while not yend:
+        if ymin == max_y:
+            yend = True
+        xmin = 0
+        xend = False
+        while not xend:
+            if xmin == max_x:
+                xend = True
+            img_slice = image[ymin:ymin + p.Y, xmin:xmin + p.X, 0:3]
+            parts.append(PartData(img_slice,
+                                  BoundingBox(xmin / shape[1], (xmin + p.X) / shape[1], ymin / shape[0],
+                                              (ymin + p.Y) / shape[0])))
+            xmin += p.Y
+            if xmin > max_x:
+                xmin = max_x
+        ymin += p.Y
+        if ymin > max_y:
+            ymin = max_y
 
     data_from_page = [Data(s.slice, page.retrieve_from_box(s.bb), s.bb, shape[0], shape[1]) for s in parts]
 

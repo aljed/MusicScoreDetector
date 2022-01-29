@@ -6,15 +6,24 @@ from jupyter.score_structure.ScoreStructure import Modifier
 
 class Ornament(Modifier):
 
-    ORNAMENTS = ['ornamentMordent', 'ornamentTrill', 'ornamentTurn', 'ornamentTurnInverted']
+    ORNAMENTS = ['ornamentTrill', 'ornamentTurn', 'ornamentTurnInverted', 'ornamentMordent', 'tremolo1', 'tremolo2',
+                 'tremolo3', 'tremolo4', 'tremolo5',   'fermataAbove', 'fermataBelow',]
 
-    ORNAMENTS_MAP = {'ornamentMordent': 'mordent',
-                    'ornamentTrill': 'trill-mark',
-                    'ornamentTurn': 'turn',
-                    'ornamentTurnInverted': 'inverted-turn'
+    ORNAMENTS_MAP = {'ornamentTrill': 'trill-mark',
+                     'ornamentTurn': 'turn',
+                     'ornamentTurnInverted': 'inverted-turn',
+                     'ornamentMordent': 'mordent',
+                     # 'tremolo1',
+                     # 'tremolo2',
+                     # 'tremolo3',
+                     # 'tremolo4',
+                     # 'tremolo5',
+                     # 'fermataAbove',
+                     # 'fermataBelow',
                     }
 
     def transform_independent_symbol(self, parent: ET.Element):
+        return parent
         if parent.tag == 'notations':
 
             ornaments = parent.find('ornaments')

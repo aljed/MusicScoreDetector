@@ -11,8 +11,8 @@ PNG_PATH = r'/images_png'
 XML_PATH = r'/xml_annotations'
 CONVERTED_PATH = r'C:\Users\user\PycharmProjects\nuty5\deep_scores_dense\converted'
 CLASSES_PATH = r'/meta_info'
-X = 256
-Y = 256
+X = 600
+Y = 600
 
 
 #CLASSES = ['noteheadBlack']
@@ -31,9 +31,5 @@ class Params:
     X: int
     Y: int
     RECORDS_TO_SAVE: int
-    BATCH_SIZE: int
     CLASSES: list
     PNG_PATH: string
-    XML_PATH: string
-    CONVERTED_PATH: string
-    CLASSES_PATH: string

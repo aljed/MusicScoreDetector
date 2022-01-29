@@ -4,6 +4,10 @@ from StaffPositionRetriever import Staff
 from Converter import ElementsMap
 import xml.etree.cElementTree as ET
 from independent.Note import Note, get_pitch_xml
+from jupyter.score_structure.ScoreFactory import transform_measure
+from jupyter.score_structure.ScoreStructure import IndependentSymbol, Modifier
+from jupyter.score_structure.independent.Rest import Rest
+from jupyter.score_structure.modifiers.Flag import Flag, transform_by_beans_number, Beam
 
 
 @dataclass
@@ -22,29 +26,42 @@ class Measure:
     elements: ElementsMap
 
     def deserialize(self, staff):
-        black_notes = self.elements.elements["noteheadBlack"]
-        black_notes.sort(key=lambda e: e.position.xmin)
-        chords = []
+        modifiers, independent = transform_measure(self.elements)
+        main = [i for i in independent if isinstance(i, Note) or isinstance(i, Rest) or isinstance(i, Flag)]
+        beams = [i for i in modifiers if isinstance(i, Beam)]
+
+        moments = []
         i = 0
-        while i < len(black_notes):
-            chord = [black_notes[i]]
+        while i < len(main):
+            moment = [main[i]]
             i += 1
-            # todo parameter
-            while i < len(black_notes) and (black_notes[i].position.xmin - black_notes[i - 1].position.xmin) < 30:
-                chord.append(black_notes[i])
+            while i < len(main) and (main[i].position.xmin - main[i - 1].position.xmin) < 30:
+                moment.append(main[i])
                 i += 1
-            chords.append(chord)
+            moments.append(moment)
         root = ET.Element("measure", width=str(self.xmax - self.xmin))
-        for chord in chords:
-            for note in chord:
-                note_xml = ET.Element("note", {"default-x": str(note.position.xmin)})
-                pitch_xml = get_pitch_xml((note.position.xmax + note.position.xmin) / 2,
-                                          (note.position.ymax + note.position.ymin) / 2, staff)
-                duration_element = ET.Element("duration")
-                duration_element.text = "1"
-                if len(chord) > 1 and note != chord[0]:
-                    note_xml.append(ET.Element("chord"))
-                note_xml.append(pitch_xml)
-                note_xml.append(duration_element)
-                root.append(note_xml)
+        for moment in moments:
+
+            moment.sort(key=lambda a: a.position.ymin)
+            beams_over = [b for b in beams if b.position.xmin < moment[0].position.xmin + 30 < b.position.xmax + 60]
+            notes = [i for i in moment if isinstance(i, Note)]
+            notes_xml = {n: n.create_independent_symbol(staff, False) for n in notes}
+            rests_xml = [i.create_independent_symbol() for i in moment if isinstance(i, Rest)]
+            modifiers = [i for i in moment if isinstance(i, Modifier)]
+
+            for modifier in modifiers:
+                yavg = (modifier.position.ymax - modifier.position.ymin) / 2
+                midpoint_lengths = [(note, abs(yavg - (note.position.ymax - note.position.ymin)) / 2) for note in notes]
+                midpoint_lengths.sort(key=lambda a,b: b)
+                closest_note = midpoint_lengths[0][0]
+                notes_xml[closest_note] = modifier.transform_independent_symbol(notes_xml[closest_note])
+
+            if len(beams_over) > 0:
+                transform_by_beans_number(len(beams_over), notes[0])
+
+            ind = [notes_xml[key] for key in notes_xml] + rests_xml
+            ind.sort(key=lambda a: a.position.ymin)
+            for i in ind:
+                root.append(i)
+
         return root

@@ -6,8 +6,8 @@ from jupyter.score_structure.ScoreStructure import Modifier
 
 class Flag(Modifier):
 
-    CLEFS = ['cClefAlto', 'cClefAltoChange', 'cClefTenor', 'cClefTenorChange', 'clef15', 'clef8', 'fClef', 'fClefChange',
-                'unpitchedPercussionClef1', 'gClef', 'gClefChange']
+    FLAGS = ['flag8thUp', 'flag8thUpSmall', 'flag16thUp', 'flag32ndUp', 'flag64thUp', 'flag128thUp', 'flag8thDown',
+              'flag8thDownSmall', 'flag16thDown', 'flag32ndDown', 'flag64thDown', 'flag128thDown']
 
     FLAG_MAP = {'flag128thDown': '128th',
                 'flag128thUp': '128th',
@@ -30,3 +30,26 @@ class Flag(Modifier):
             typ.text = self.FLAG_MAP[self.typ]
 
         return parent
+
+
+class Beam(Modifier):
+
+    BEAM = ['beam']
+
+
+def transform_by_beans_number(beans, parent):
+    if parent.tag == 'note':
+        txt = 'quarter'
+        if beans == 1:
+            txt = '8th'
+        elif beans == 2:
+            txt = '16th'
+        elif beans == 3:
+            txt = '32nd'
+        elif beans == 4:
+            txt = '64th'
+        elif beans == 5:
+            txt = '128th'
+        typ = parent.find('type')
+        typ.text = txt
+    return parent

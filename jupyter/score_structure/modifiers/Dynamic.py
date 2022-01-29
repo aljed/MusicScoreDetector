@@ -6,27 +6,14 @@ from jupyter.score_structure.ScoreStructure import Modifier
 
 class Dynamic(Modifier):
 
-    DYNAMICS = ['dynamicFF', 'dynamicFFF', 'dynamicFFFF', 'dynamicFFFFF', 'dynamicForte', 'dynamicFortePiano',
-                'dynamicMezzo', 'dynamicMF', 'dynamicMP', 'dynamicPiano', 'dynamicPP', 'dynamicPPP', 'dynamicPPPP',
-                'dynamicPPPPP', 'dynamicRinforzando2', 'dynamicSforzando1', 'dynamicSforzato']
+    DYNAMICS = ['dynamicP', 'dynamicM', 'dynamicF', 'dynamicS', 'dynamicZ', 'dynamicR']
 
-    DYNAMICS_MAP = {'dynamicFF': 'ff',
-                    'dynamicFFF': 'fff',
-                    'dynamicFFFF': 'ffff',
-                    'dynamicFFFFF': 'fffff',
-                    'dynamicForte': 'f',
-                    'dynamicFortePiano': 'fp',
-                    'dynamicMezzo': 'n',  # todo
-                    'dynamicMF': 'mf',
-                    'dynamicMP': 'mp',
-                    'dynamicPiano': 'p',
-                    'dynamicPP': 'pp',
-                    'dynamicPPP': 'ppp',
-                    'dynamicPPPP': 'pppp',
-                    'dynamicPPPPP': 'ppppp',
-                    'dynamicRinforzando2': 'rf',
-                    'dynamicSforzando1': 'sfz',
-                    'dynamicSforzato': 'sf'
+    DYNAMICS_MAP = {'dynamicP': 'p',
+                    'dynamicM': 'm',
+                    'dynamicF': 'f',
+                    'dynamicS': 's',
+                    'dynamicZ': 'z',
+                    'dynamicR': 'r'
                     }
 
     def transform_independent_symbol(self, parent: ET.Element):

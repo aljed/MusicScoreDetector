@@ -1,4 +1,6 @@
 from ScoreStructure import BoundingBox, Modifier, IndependentSymbol
+from jupyter.score_structure.independent.Note import Note
+from jupyter.score_structure.independent.Rest import Rest
 from jupyter.score_structure.modifiers.Flag import Flag
 from jupyter.score_structure.modifiers.Accent import Accent
 from jupyter.score_structure.modifiers.Accidental import Accidental
@@ -12,6 +14,10 @@ from jupyter.score_structure.Converter import ElementsMap
 def create(typ, bb: BoundingBox):
     if typ in Flag.FLAGS:
         return Flag(typ, bb)
+    elif typ in Note.NOTES:
+        return Note(typ, bb)
+    elif typ in Rest.RESTS:
+        return Rest(typ, bb)
     elif typ in Number.NUMBERS:
         return Number(typ, bb)
     elif typ in Accent.ACCENTS:
@@ -24,6 +30,7 @@ def create(typ, bb: BoundingBox):
         return Ornament(typ, bb)
     elif typ in NoteModifier.NOTATIONS:
         return NoteModifier(typ, bb)
+    return None
 
 
 def transform_measure(elements_map: ElementsMap):
